@@ -85,6 +85,9 @@ class TaskDataset(Dataset):
         if type(self.data[0]) is list:
             data = [sample[:limit] for sample in self.data]
             self.data = data
+        if self.attention_mask:
+            mask = [sample[:limit] for sample in self.attention_mask]
+            self.attention_mask = mask
 
 
 def set_imbalance_by_cls(no_by_cls:dict, tolerance, threshold, a=0.75, b=2.1):

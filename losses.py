@@ -3,7 +3,7 @@ import torch
 from torch.nn import functional as F
 
 
-def dice_loss(true, logits, eps=1e-7):
+def dice_loss(logits, true, eps=1e-7):
     """Computes the SørensenDice loss.
     Note that PyTorch optimizers minimize a loss. In this
     case, we would like to maximize the dice loss so we
@@ -16,9 +16,10 @@ def dice_loss(true, logits, eps=1e-7):
     Returns:
         dice_loss: the SørensenDice loss.
     """
+    true = true.long()
     num_classes = logits.shape[1]
     if num_classes == 1:
-        true_1_hot = torch.eye(num_classes + 1)[true.squeeze(1)]
+        true_1_hot = torch.eye(num_classes + 1)[true.squeeze(1)] # what?
         true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
         true_1_hot_f = true_1_hot[:, 0:1, :, :]
         true_1_hot_s = true_1_hot[:, 1:2, :, :]
@@ -38,7 +39,7 @@ def dice_loss(true, logits, eps=1e-7):
     return (1 - dice_loss)
 
 
-def tversky_loss(true, logits, alpha, beta, eps=1e-7):
+def tversky_loss(logits, true, alpha, beta, eps=1e-7):
     """Computes the Tversky loss [1].
     Args:
         true: a tensor of shape [B, H, W] or [B, 1, H, W].

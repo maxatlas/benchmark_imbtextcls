@@ -11,6 +11,8 @@ from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 
 from torch.nn.utils.rnn import pad_sequence
 
+torch.manual_seed(66)
+
 
 def collate_multi_label(batch):
     """
@@ -77,8 +79,10 @@ def train_per_ds(filename, model_name:str, batch_size:int, max_length:int, epoch
     print("\nLoading model ...")
     model_init_config_dict = models[model_name]['config']().to_dict()
     model_init_config_dict['n_positions'] = max_length
-    model_init_config_dict['cls_no'] = len(val_set.labels_meta.names)
+    model_init_config_dict['num_labels'] = len(val_set.labels_meta.names)
     model_init_config_dict['vocab_size'] = len(tokenizer)
+    model_init_config_dict['max_position_embeddings'] = max_length
+    model_init_config_dict['pad_token_id'] = 0
     model_init_config = models[model_name]['config'].from_dict(model_init_config_dict)
 
     model = models[model_name]['model'](config=model_init_config)
@@ -129,6 +133,6 @@ def train_per_ds(filename, model_name:str, batch_size:int, max_length:int, epoch
 
 if __name__ == "__main__":
     from losses import tversky_loss, dice_loss
-    filename, model_name, batch_size, max_length, epoch, loss_func, test = "dataset/imdb.tds", "roberta", 2000, 1024, 1, BCEWithLogitsLoss(), 3
+    filename, model_name, batch_size, max_length, epoch, loss_func, test = "dataset/imdb.tds", "gpt", 2000, 1024, 1, BCEWithLogitsLoss(), 100
     # loss_func = dice_loss
     res = train_per_ds(filename, model_name, batch_size, max_length, epoch, loss_func, test)
