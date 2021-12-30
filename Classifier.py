@@ -6,7 +6,9 @@ import numpy as np
 
 from transformers import (GPT2PreTrainedModel, GPT2Model,
                           BertPreTrainedModel, BertModel,
-                          XLNetPreTrainedModel, XLNetModel)
+                          XLNetPreTrainedModel, XLNetModel,
+                          RobertaPreTrainedModel, RobertaModel,
+                          modeling_utils)
 
 from sklearn.metrics import f1_score, recall_score, precision_score, classification_report
 from gensim.models.keyedvectors import KeyedVectors
@@ -70,16 +72,16 @@ def metrics_frame(preds, labels, label_names):
 
 
 class GPT2(GPT2PreTrainedModel):
-    def __init__(self, label_no, config):
+    def __init__(self, config):
 
         super(GPT2, self).__init__(config)
 
-        self.cls_no = label_no
+        self.cls_no = config.num_labels
         self.n_positions = config.n_positions
 
-        self.gpt2 = GPT2Model(config)
+        self.model = GPT2Model(config)
         self.dropout = nn.Dropout(0.1)
-        self.cls_layer = nn.Linear(config.hidden_size, label_no)
+        self.cls_layer = nn.Linear(config.hidden_size, self.cls_no)
 
         self.cls_type = "max"
 
@@ -89,7 +91,7 @@ class GPT2(GPT2PreTrainedModel):
         self.cls_type = cls_type
 
     def forward(self, input_ids):
-        outputs = self.gpt2(
+        outputs = self.model(
             input_ids
         )
 
@@ -124,43 +126,57 @@ class GPT2(GPT2PreTrainedModel):
         return metrics_frame(preds, labels, label_names)
 
 
-class BertForSequenceClassification(BertPreTrainedModel):
+class RobertaClassificationHead(nn.Module):
+    """Head for sentence-level classification tasks."""
+
+    def __init__(self, config):
+        super().__init__()
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.out_proj = nn.Linear(config.hidden_size, config.num_labels)
+
+    def forward(self, features, **kwargs):
+        x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
+        x = self.dropout(x)
+        x = self.dense(x)
+        x = torch.tanh(x)
+        x = self.dropout(x)
+        x = self.out_proj(x)
+        return x
+
+
+class Roberta(RobertaPreTrainedModel):
+    _keys_to_ignore_on_load_missing = [r"position_ids"]
+
     def __init__(self, config):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
 
-        self.bert = BertModel(config)
-        classifier_dropout = (
-            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
-        )
-        self.dropout = nn.Dropout(classifier_dropout)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.classifier = RobertaClassificationHead(config)
 
         # Initialize weights and apply final processing
-        self.post_init()
+        self.init_weights()
 
     def forward(
-        self,
-        input_ids=None,
-        attention_mask=None,
-        token_type_ids=None,
-        position_ids=None,
-        head_mask=None,
-        inputs_embeds=None,
-        output_attentions=None,
-        output_hidden_states=None,
-        return_dict=None,
+            self,
+            input_ids=None,
+            attention_mask=None,
+            token_type_ids=None,
+            position_ids=None,
+            head_mask=None,
+            inputs_embeds=None,
+            output_attentions=None,
+            output_hidden_states=None,
+            return_dict=None,
     ):
-        r"""
-        labels (`torch.LongTensor` of shape `(batch_size,)`, *optional*):
-            Labels for computing the sequence classification/regression loss. Indices should be in `[0, ...,
-            config.num_labels - 1]`. If `config.num_labels == 1` a regression loss is computed (Mean-Square loss), If
-            `config.num_labels > 1` a classification loss is computed (Cross-Entropy).
-        """
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        outputs = self.bert(
+        outputs = self.roberta(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
@@ -171,30 +187,155 @@ class BertForSequenceClassification(BertPreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        logits = self.classifier(outputs[0])
+        preds = torch.argmax(logits, axis=1)
+
+        return logits, preds
+
+    def batch_train(self, input_ids, attention_mask, token_type_ids, label_ids, loss_func):
+        logits, _ = self.forward(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        loss = loss_func(logits, label_ids)
+
+        return loss
+
+    def batch_eval(self, input_ids, attention_mask, token_type_ids, labels, label_names):
+        with torch.no_grad():
+            _, preds = self.forward(input_ids, attention_mask, token_type_ids)
+        return metrics_frame(preds, labels, label_names)
+
+
+class BERT(BertPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.num_labels = config.num_labels
+        self.config = config
+
+        self.model = BertModel(config)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.cls_layer = nn.Linear(config.hidden_size, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.init_weights()
+
+    def forward(
+        self,
+        input_ids,
+        attention_mask,
+        token_type_ids,
+        position_ids=None,
+        head_mask=None,
+        inputs_embeds=None,
+        output_attentions=None,
+        output_hidden_states=None,
+        return_dict=None,
+    ):
+        outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            token_type_ids=token_type_ids,
+            position_ids = position_ids,
+            head_mask = head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict
+        )
 
         pooled_output = outputs[1]
 
         pooled_output = self.dropout(pooled_output)
-        logits = self.classifier(pooled_output)
+        logits = self.cls_layer(pooled_output)
+        preds = torch.argmax(logits, axis=1)
 
-        return logits
+        return preds, logits
 
     def batch_train(self,
-                    loss_funct,
-                    input_ids=None,
-                    attention_mask=None,
-                    token_type_ids=None,
-                    position_ids=None,
-                    head_mask=None,
-                    inputs_embeds=None,
-                    labels=None,
-                    output_attentions=None,
-                    output_hidden_states=None,
-                    return_dict=None,):
-        logits = self.forward()
-        loss = loss_funct(logits, labels)
+                    input_ids,
+                    attention_mask,
+                    token_type_ids,
+                    label_ids,
+                    loss_func):
+        _, logits = self.forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        loss = loss_func(logits, label_ids)
 
         return loss
+
+    def batch_eval(self, input_ids,
+                   attention_mask,
+                   token_type_ids,
+                   labels,
+                   label_names):
+        preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        res = metrics_frame(preds, labels, label_names)
+        return res
+
+
+class XLNet(XLNetPreTrainedModel):
+    def __init__(self, config):
+        super().__init__(config)
+        self.cls_no = config.num_labels
+        self.config = config
+
+        self.model = XLNetModel(config)
+        self.sequence_summary = modeling_utils.SequenceSummary(config)
+        self.cls_layer = nn.Linear(config.d_model, config.num_labels)
+
+        # Initialize weights and apply final processing
+        self.init_weights()
+
+    def forward(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        return_dict=None,
+        **kwargs,  # delete when `use_cache` is removed in XLNetModel
+    ):
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        transformer_outputs = self.model(
+            input_ids,
+            attention_mask=attention_mask,
+            return_dict=return_dict,
+            **kwargs,
+        )
+        output = transformer_outputs[0]
+
+        output = self.sequence_summary(output)
+        logits = self.cls_layer(output)
+        preds = torch.argmax(logits, axis=1)
+
+        print(output)
+
+        return preds, logits
+
+    def batch_train(self,
+                    input_ids,
+                    attention_mask,
+                    token_type_ids,
+                    label_ids,
+                    loss_func,
+                    **kwargs):
+        _, logits = self.forward(input_ids=input_ids, attention_mask=attention_mask,
+                                 token_type_ids=token_type_ids,
+                                 **kwargs)
+        loss = loss_func(logits, label_ids)
+
+        return loss
+
+    def batch_eval(self, input_ids,
+                   attention_mask,
+                   token_type_ids,
+                   labels,
+                   label_names,
+                   **kwargs):
+        preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask,
+                                token_type_ids=token_type_ids,
+                                **kwargs)
+        res = metrics_frame(preds, labels, label_names)
+        return res
 
 
 class LSTMClassifier(nn.Module):

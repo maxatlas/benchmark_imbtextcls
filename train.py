@@ -70,16 +70,18 @@ def train_per_ds(filename, model_name:str, batch_size:int, max_length:int, epoch
     test_set.labels = test_set.labels[:test]
     test_set.data = test_set.data[:test]
 
-    print("\nLoading model ...")
-    model_init_config_dict = models[model_name]['config']().to_dict()
-    model_init_config_dict['n_positions'] = max_length
-    model_init_config = models[model_name]['config'].from_dict(model_init_config_dict)
-
-    model = models[model_name]['model'](len(val_set.labels_meta.names), config=model_init_config)
-
     print("\nLoading tokenizer ...")
     tokenizer = models[model_name]['tokenizer']
     tokenizer.model_max_length = max_length
+
+    print("\nLoading model ...")
+    model_init_config_dict = models[model_name]['config']().to_dict()
+    model_init_config_dict['n_positions'] = max_length
+    model_init_config_dict['cls_no'] = len(val_set.labels_meta.names)
+    model_init_config_dict['vocab_size'] = len(tokenizer)
+    model_init_config = models[model_name]['config'].from_dict(model_init_config_dict)
+
+    model = models[model_name]['model'](config=model_init_config)
 
     print("\nTokenizing ...")
     tknzed = tokenizer(train_set.data)
@@ -106,7 +108,7 @@ def train_per_ds(filename, model_name:str, batch_size:int, max_length:int, epoch
         for batch in tqdm(train_dl, desc="Iteration"):
             # for t in batch: t.to(device)
             text_ids, attention_mask, token_type_ids, label_ids = batch
-            loss = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids, loss_func=loss_func())
+            loss = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids, loss_func=loss_func)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -116,13 +118,17 @@ def train_per_ds(filename, model_name:str, batch_size:int, max_length:int, epoch
     for batch in tqdm(test_dl, desc="Iteration"):
         text_ids, attention_mask, token_type_ids, labels = batch
 
-        res = model.batch_eval(text_ids, labels, val_set.labels_meta.names)
+        res = model.batch_eval(text_ids, attention_mask, token_type_ids, labels, val_set.labels_meta.names)
 
     if not test: model.save_pretrained(save_directory="models/%s/%s" %(model_name, datetime.today()),
                           save_config=True, state_dict=model.state_dict())
+
+    print(res)
     return res
 
 
 if __name__ == "__main__":
-    filename, model_name, batch_size, max_length, epoch, loss_func, test = "dataset/imdb.tds", "gpt", 2000, 1024, 1, BCEWithLogitsLoss, 3
+    from losses import tversky_loss, dice_loss
+    filename, model_name, batch_size, max_length, epoch, loss_func, test = "dataset/imdb.tds", "roberta", 2000, 1024, 1, BCEWithLogitsLoss(), 3
+    # loss_func = dice_loss
     res = train_per_ds(filename, model_name, batch_size, max_length, epoch, loss_func, test)
