@@ -1,3 +1,9 @@
+from model_config import ModelConfig
+
+
+class TaskConfig(ModelConfig):
+    def __init__(self):
+        super(TaskConfig, self).__init__()
 
 
 training_config = {

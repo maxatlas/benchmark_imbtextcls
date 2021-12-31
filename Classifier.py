@@ -10,10 +10,14 @@ from transformers import (GPT2PreTrainedModel, GPT2Model,
                           RobertaPreTrainedModel, RobertaModel,
                           modeling_utils)
 
-from sklearn.metrics import f1_score, recall_score, precision_score, classification_report
+from sklearn.metrics import (f1_score,
+                             roc_curve,
+                             auc,
+                             recall_score,
+                             precision_score,
+                             classification_report)
 from gensim.models.keyedvectors import KeyedVectors
 
-torch.manual_seed(0)
 """
     Deep Learning classifier:
         DNN
@@ -23,6 +27,10 @@ torch.manual_seed(0)
         RCNN
         RMDL
         HDLTex
+        Roberta
+        BERT
+        GPT
+        XLNet
 """
 
 
@@ -63,12 +71,35 @@ def metrics_frame(preds, labels, label_names):
     precision_macro = precision_score(labels, preds, average="macro")
     f1_micro = f1_score(labels, preds, average="micro")
     f1_macro = f1_score(labels, preds, average="macro")
+    fpr, tpr, thresholds = roc_curve(labels, preds, pos_label=1)
+    auc_res = auc(fpr, tpr)
     cr = classification_report(labels, preds,)
                                # labels=list(range(len(label_names))), target_names=label_names)
-    model_metrics = {"Precision, Micro": precision_micro, "Precision, Macro": precision_macro,
-                     "Recall, Micro": recall_micro, "Recall, Macro": recall_macro,
-                     "F1 score, Micro": f1_micro, "F1 score, Macro": f1_macro, "Classification report": cr}
+
+    model_metrics = {
+        "Precision, Micro": precision_micro,
+        "Precision, Macro": precision_macro,
+        "Recall, Micro": recall_micro,
+        "Recall, Macro": recall_macro,
+        "F1 score, Micro": f1_micro,
+        "F1 score, Macro": f1_macro,
+        "ROC curve": (fpr, tpr, thresholds),
+        "AUC": auc_res,
+        "Classification report": cr,
+    }
+
     return model_metrics
+
+
+class TaskModel(nn.Module):
+    def __init__(self, config):
+        super(TaskModel, self).__init__()
+
+        emb_weights = torch.load(config.emb_path)
+        vocab_size, self.emb_d = emb_weights['weight'].shape
+
+        self.emb = nn.Embedding(vocab_size, self.emb_d)
+        self.emb.load_state_dict(emb_weights)
 
 
 class GPT2(GPT2PreTrainedModel):
@@ -338,25 +369,54 @@ class XLNet(XLNetPreTrainedModel):
         return res
 
 
-class LSTMClassifier(nn.Module):
-    def __init__(self, embedding_dim, hidden_dim, label_size):
-        super(LSTMClassifier, self).__init__()
+class LSTM(TaskModel):
+    def __init__(self, config):
+        super(LSTM, self).__init__(config)
+        self.lstm = nn.LSTM(self.emb_d, config.hidden_size, batch_first=True)
+        self.cls = nn.Linear(config.hidden_size, config.num_labels)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
-        self.lstm = nn.LSTM(embedding_dim, hidden_dim)
-        self.hidden2label = nn.Linear(hidden_dim, label_size)
-        self.dropout = nn.Dropout(0.2)
+    def forward(self, input_ids):
+        embeds = self.emb(input_ids)
+        lstm_out, (ht, ct) = self.lstm(embeds)
+        logits = self.cls(ht[-1])
+        preds = torch.argmax(logits, dim=1)
 
-    def forward(self, sentence):
-        embeds = sentence
-        lstm_out, (ht, ct) = self.lstm(embeds.view(len(sentence), 1, -1))
-        linear_out = self.hidden2label(ht[-1])
+        return logits, preds
 
-        return linear_out
+    def batch_train(self, input_ids, a, b, label_ids, loss_func):
+        logits, _ = self.forward(input_ids)
+
+        loss = loss_func(logits, label_ids)
+        return loss
+
+    def batch_eval(self, input_ids, a,b, labels, label_names):
+        _, preds = self.forward(input_ids)
+
+        res = metrics_frame(preds, labels, label_names)
+        return res
 
 
-class CNNClassifier(nn.Module):
+class RCNN(nn.Module):
+    def __init__(self, emb_layer:torch.nn.modules.sparse.Embedding, config):
+        self.kernel_size = config.kernel_size
+        self.filter_no = config.filter_no
+        self.pool_size = config.pool_size
+        self.gru_node_no = config.gru_node_no
+
+        self.emb_layer = emb_layer
+
+
+
+        return
+
+    def forward(self):
+        return
+
+
+class CNN(nn.Module):
     def __init__(self, params):
-        super(CNNClassifier, self).__init__()
+        super(CNN, self).__init__()
         self.seq_len = params.seq_len
         self.num_words = params.num_words
         self.embedding_size = params.embedding_size
