@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 
 import numpy as np
-
+from torch.autograd import Variable
+from torch.nn import functional as F
 from transformers import (GPT2PreTrainedModel, GPT2Model,
                           BertPreTrainedModel, BertModel,
                           XLNetPreTrainedModel, XLNetModel,
@@ -372,7 +373,7 @@ class XLNet(XLNetPreTrainedModel):
 class LSTM(TaskModel):
     def __init__(self, config):
         super(LSTM, self).__init__(config)
-        self.lstm = nn.LSTM(self.emb_d, config.hidden_size, batch_first=True)
+        self.lstm = nn.LSTM(self.emb_d, config.hidden_size, batch_first=True, dropout=config.hidden_dropout_prob)
         self.cls = nn.Linear(config.hidden_size, config.num_labels)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -400,13 +401,77 @@ class LSTM(TaskModel):
 class RCNN(TaskModel):
     def __init__(self, config):
         super(RCNN, self).__init__(config)
-        self.kernel_size = config.kernel_size
-        self.filter_no = config.filter_no
-        self.pool_size = config.pool_size
-        self.gru_node_no = config.gru_node_no
 
-    def forward(self):
-        return
+        """
+        Arguments
+        ---------
+        batch_size : Size of the batch which is same as the batch_size of the data returned by the TorchText BucketIterator
+        output_size : 2 = (pos, neg)
+        hidden_sie : Size of the hidden_state of the LSTM
+        vocab_size : Size of the vocabulary containing unique words
+        embedding_length : Embedding dimension of GloVe word embeddings
+        weights : Pre-trained GloVe word_embeddings which we will use to create our word_embedding look-up table 
+
+        """
+
+        self.num_labels = config.num_labels
+        self.hidden_size = config.hidden_size
+
+        self.lstm = nn.LSTM(self.emb_d, self.hidden_size, dropout=config.hidden_dropout_prob, bidirectional=True)
+        self.W2 = nn.Linear(2 * self.hidden_size + self.emb_d, self.hidden_size)
+        self.cls_layer = nn.Linear(self.hidden_size, self.num_labels)
+
+    def forward(self, input_ids, batch_size=None):
+
+        """
+        Parameters
+        ----------
+        input_sentence: input_sentence of shape = (batch_size, num_sequences)
+        batch_size : default = None. Used only for prediction on a single sentence after training (batch_size = 1)
+
+        Returns
+        -------
+        Output of the linear layer containing logits for positive & negative class which receives its input as the final_hidden_state of the LSTM
+        final_output.shape = (batch_size, output_size)
+
+        """
+
+        """
+
+        The idea of the paper "Recurrent Convolutional Neural Networks for Text Classification" is that we pass the embedding vector
+        of the text sequences through a bidirectional LSTM and then for each sequence, our final embedding vector is the concatenation of 
+        its own GloVe embedding and the left and right contextual embedding which in bidirectional LSTM is same as the corresponding hidden
+        state. This final embedding is passed through a linear layer which maps this long concatenated encoding vector back to the hidden_size
+        vector. After this step, we use a max pooling layer across all sequences of texts. This converts any varying length text into a fixed
+        dimension tensor of size (batch_size, hidden_size) and finally we map this to the output layer.
+        """
+        x = self.emb(
+            input_ids)  # embedded input of shape = (batch_size, num_sequences, embedding_length)
+        x = x.permute(1, 0, 2)  # input.size() = (num_sequences, batch_size, embedding_length)
+
+        output, (final_hidden_state, final_cell_state) = self.lstm(x)
+
+        final_encoding = torch.cat((output, x), 2).permute(1, 0, 2)
+        y = self.W2(final_encoding)  # y.size() = (batch_size, num_sequences, hidden_size)
+        y = y.permute(0, 2, 1)  # y.size() = (batch_size, hidden_size, num_sequences)
+        y = F.max_pool1d(y, y.size(2))  # y.size() = (batch_size, hidden_size, 1)
+        y = y.squeeze(2)
+        logits = self.cls_layer(y)
+        preds = torch.argmax(logits, dim=1)
+
+        return logits, preds
+
+    def batch_train(self, input_ids, a, b, label_ids, loss_func):
+        logits, _ = self.forward(input_ids)
+
+        loss = loss_func(logits, label_ids)
+        return loss
+
+    def batch_eval(self, input_ids, a, b, labels, label_names):
+        _, preds = self.forward(input_ids)
+
+        res = metrics_frame(preds, labels, label_names)
+        return res
 
 
 class CNN(TaskModel):
@@ -452,20 +517,8 @@ class CNN(TaskModel):
     def forward(self, input_ids):
         embeds = self.emb(input_ids)
         # (N, L, D) -> (N, D, L)
-        embeds = embeds.reshape(embeds.size(0), embeds.size(2), embeds.size(1))
+        embeds = embeds.permute(0, 2, 1)
         outs = []
-        """
-input_ids = text_ids
-embeds = model.emb(input_ids)
-embeds = embeds.reshape(embeds.size(0), embeds.size(2), embeds.size(1))
-outs = []
-
-for conv_layer, pool_layer in zip(model.conv_layers, model.pool_layers):
-    out = conv_layer(embeds)
-    out = torch.relu(out)
-    out = pool_layer(out)
-    outs.append(out)
-        """
         for conv_layer, pool_layer in zip(self.conv_layers, self.pool_layers):
             out = conv_layer(embeds)
             out = torch.relu(out)

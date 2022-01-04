@@ -3,7 +3,7 @@ from transformers import (
     GPT2Config, BertConfig, XLNetConfig, RobertaConfig)
 from Classifier import (
     GPT2, BERT, XLNet, Roberta,
-    LSTM
+    LSTM, CNN, RCNN
 )
 
 
@@ -60,6 +60,18 @@ models = {
     "lstm":{
         "tokenizer": faketkn(),
         "model": LSTM,
+        "config": ModelConfig()
+    },
+
+    "cnn":{
+        "tokenizer": faketkn(),
+        "model": CNN,
+        "config": ModelConfig()
+    },
+
+    "rcnn":{
+        "tokenizer": faketkn(),
+        "model": RCNN,
         "config": ModelConfig()
     }
 }

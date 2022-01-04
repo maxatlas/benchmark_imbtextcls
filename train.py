@@ -19,6 +19,8 @@ def collate_batch(batch, pad_to_length, multi_label):
     """
     input_ids & labels(could be string) -> padded input_ids and label_ids
 
+    :param multi_label:
+    :param pad_to_length:
     :param batch:
     :return:
     """
@@ -100,10 +102,11 @@ def train_per_ds(task_config, model_config_d):
         collate_fn=lambda b: collate_batch(b,
                                            model_config.pad_to_length,
                                            True))
-    test_dl = DataLoader(test_set, batch_size=batch_size,
-                         shuffle=True, collate_fn=lambda b: collate_batch(b,
-                                                                          model_config.pad_to_length,
-                                                                          model_config.multi_label))
+    test_dl = DataLoader(
+        test_set, batch_size=batch_size,shuffle=True,
+        collate_fn=lambda b: collate_batch(b,
+                                           model_config.pad_to_length,
+                                           model_config.multi_label))
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
 
@@ -121,12 +124,13 @@ def train_per_ds(task_config, model_config_d):
     print("\nEvaluating ...")
     model.eval()
     for batch in tqdm(test_dl, desc="Iteration"):
+        # batch = tuple(t.to("cuda:0") for t in batch)
         text_ids, attention_mask, token_type_ids, labels = batch
 
         res = model.batch_eval(text_ids, attention_mask, token_type_ids, labels, model_config.label_names)
 
     if not test: model.save_pretrained(save_directory="models/%s/%s" %(model_name, datetime.today()),
-                          save_config=True, state_dict=model.state_dict())
+                                       save_config=True, state_dict=model.state_dict())
 
     print(res)
     return res
@@ -148,7 +152,7 @@ if __name__ == "__main__":
 
     conf_dict = {"filename": "dataset/imdb.wi",
                  "emb_path": "models/emb_layer_glove",
-                 "model_name": "cnn",
+                 "model_name": "rcnn",
                  "batch_size": 100,
                  "max_length": 1024,
                  "epoch": 1,
