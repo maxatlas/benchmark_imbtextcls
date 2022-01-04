@@ -11,10 +11,21 @@ if __name__ == "__main__":
     test=3
     filename="dataset/imdb.wi"
     max_length=1024
-    model_name="lstm"
+    model_name="cnn"
     batch_size=100
     split_strategy="uniform"
     emb_path="models/emb_layer_glove"
+
+    c = {"hidden_dropout_prob": 0.1,
+         "emb_path": "models/emb_layer_glove",
+         "num_filters": 3,
+         "padding": 0,
+         "dilation": 1,
+         "max_length": 1024,
+         "filters": [2, 3, 4],
+         "stride": 1,
+         "pad_to_length": 1024,
+         "multi_label": False}
 
     train_set, test_set, val_set = split_tds(filename, split_strategy)
     train_set.data = train_set.data[:test]
@@ -30,6 +41,7 @@ if __name__ == "__main__":
 
     print("\nLoading model ...")
     model_config_dict = models[model_name]['config'].to_dict()
+    model_config_dict.update(c)
     model_config_dict['n_positions'] = max_length
     model_config_dict['label_names'] = val_set.labels_meta.names
     model_config_dict['num_labels'] = len(val_set.labels_meta.names)
@@ -37,6 +49,7 @@ if __name__ == "__main__":
     model_config_dict['max_position_embeddings'] = max_length
     model_config_dict['pad_token_id'] = 0
     model_config_dict['emb_path'] = emb_path
+    model_config_dict['pack_to_max'] = 1
     model_config = models[model_name]['config'].from_dict(model_config_dict)
 
     model = models[model_name]['model'](config=model_config)

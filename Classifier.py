@@ -397,64 +397,97 @@ class LSTM(TaskModel):
         return res
 
 
-class RCNN(nn.Module):
-    def __init__(self, emb_layer:torch.nn.modules.sparse.Embedding, config):
+class RCNN(TaskModel):
+    def __init__(self, config):
+        super(RCNN, self).__init__(config)
         self.kernel_size = config.kernel_size
         self.filter_no = config.filter_no
         self.pool_size = config.pool_size
         self.gru_node_no = config.gru_node_no
 
-        self.emb_layer = emb_layer
-
-
-
-        return
-
     def forward(self):
         return
 
 
-class CNN(nn.Module):
-    def __init__(self, params):
-        super(CNN, self).__init__()
-        self.seq_len = params.seq_len
-        self.num_words = params.num_words
-        self.embedding_size = params.embedding_size
+class CNN(TaskModel):
+    def __init__(self, config):
+        super(CNN, self).__init__(config)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+        self.num_filters = config.num_filters
+        self.padding = config.padding
+        self.dilation = config.dilation
+        self.max_length = config.n_positions
+        self.num_labels = config.num_labels
+        self.stride = config.stride
 
-        self.dropout = nn.Dropout(0.25)
+        self.filters = config.filters
+        # filters = [filter_size]
+        self.conv_layers = [self._create_conv_layers(kernel_size) for kernel_size in self.filters]
+        self.pool_layers = [self._create_pool_layer(kernel_size) for kernel_size in self.filters]
 
-        self.kernel_1 = 2
-        self.kernel_2 = 3
-        self.kernel_3 = 4
-        self.kernel_4 = 5
+        self.cls_layer = nn.Linear(self._get_output_size(), self.num_labels)
 
-        # number of output channels of the convolution for each layer.
-        self.out_size = params.out_size
-        self.stride = params.stride
+    def _create_conv_layers(self, kernel_size):
+        conv_layer = nn.Conv1d(self.emb_d, self.num_filters, kernel_size, self.stride)
+        return conv_layer
 
-        self.embedding = nn.Embedding(self.num_words + 1, self.embedding_size, padding_idx=0) # vocab size + 1 for padding
+    def _create_pool_layer(self, kernel_size):
+        pool_layer = nn.MaxPool1d(kernel_size, self.stride)
+        return pool_layer
 
-        self.conv_1 = nn.Conv1d(self.seq_len, self.out_size, self.kernel_1, self.stride)
-        self.conv_2 = nn.Conv1d(self.seq_len, self.out_size, self.kernel_2, self.stride)
-        self.conv_3 = nn.Conv1d(self.seq_len, self.out_size, self.kernel_3, self.stride)
-        self.conv_4 = nn.Conv1d(self.seq_len, self.out_size, self.kernel_4, self.stride)
+    def _get_output_size(self):
+        def _get_size(length, kernel_size):
+            out = math.floor((length + 2 *
+                        self.padding - self.dilation * (kernel_size - 1)
+                        - 1) / self.stride + 1)
+            return out
+        output_size = [_get_size(self.max_length, kernel_size)
+                       for kernel_size in self.filters]
+        output_size = [_get_size(conv_size, kernel_size)
+                       for kernel_size, conv_size in zip(self.filters, output_size)]
+        output_size = sum(output_size) * len(self.filters)
 
-        self.pool_1 = nn.MaxPool1d(self.kernel_1, self.stride)
-        self.pool_2 = nn.MaxPool1d(self.kernel_2, self.stride)
-        self.pool_3 = nn.MaxPool1d(self.kernel_3, self.stride)
-        self.pool_4 = nn.MaxPool1d(self.kernel_4, self.stride)
+        return output_size
 
-        self.fc = nn.Linear(self.in_features_fc(), 1)
+    def forward(self, input_ids):
+        embeds = self.emb(input_ids)
+        # (N, L, D) -> (N, D, L)
+        embeds = embeds.reshape(embeds.size(0), embeds.size(2), embeds.size(1))
+        outs = []
+        """
+input_ids = text_ids
+embeds = model.emb(input_ids)
+embeds = embeds.reshape(embeds.size(0), embeds.size(2), embeds.size(1))
+outs = []
 
-    def in_features_fc(self):
-        out_conv_1 = ((self.embedding_size - 1 * (self.kernel_1 - 1) - 1) / self.stride) + 1
-        out_conv_1 = math.floor(out_conv_1)
-        out_pool_1 = ((out_conv_1 - 1 * (self.kernel_1 - 1) - 1) / self.stride) + 1
-        out_pool_1 = math.floor(out_pool_1)
+for conv_layer, pool_layer in zip(model.conv_layers, model.pool_layers):
+    out = conv_layer(embeds)
+    out = torch.relu(out)
+    out = pool_layer(out)
+    outs.append(out)
+        """
+        for conv_layer, pool_layer in zip(self.conv_layers, self.pool_layers):
+            out = conv_layer(embeds)
+            out = torch.relu(out)
+            out = pool_layer(out)
+            outs.append(out)
 
-        out_conv_2 = (())
-        out_conv_2 = math.floor(out_conv_2)
-        out_pool_2 = ((out_conv_2 - 1 * (self.kernel_2 - 1) - 1) / self.stride) + 1
-        out_pool_2 = math.floor(out_pool_2)
+        out = torch.cat(outs, dim=2)
+        out = out.reshape(out.size(0), -1)
 
+        logits = self.cls_layer(out)
+        preds = torch.argmax(logits, dim=1)
 
+        return logits, preds
+
+    def batch_train(self, input_ids, a, b, label_ids, loss_func):
+        logits, _ = self.forward(input_ids)
+
+        loss = loss_func(logits, label_ids)
+        return loss
+
+    def batch_eval(self, input_ids, a, b, labels, label_names):
+        _, preds = self.forward(input_ids)
+
+        res = metrics_frame(preds, labels, label_names)
+        return res

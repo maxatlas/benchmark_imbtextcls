@@ -10,11 +10,12 @@ from model_config import *
 from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 
 from torch.nn.utils.rnn import pad_sequence
+from utils import pad_sequence_to_length
 
-torch.manual_seed(66)
+torch.manual_seed(0)
 
 
-def collate_multi_label(batch):
+def collate_batch(batch, pad_to_length, multi_label):
     """
     input_ids & labels(could be string) -> padded input_ids and label_ids
 
@@ -24,46 +25,26 @@ def collate_multi_label(batch):
     text_ids, attention_mask, token_type_ids, label_ids = zip(*batch)
 
     text_ids = [torch.tensor(text_id) for text_id in text_ids]
-    text_ids = pad_sequence(text_ids, batch_first=True, padding_value=0)
+    text_ids = pad_sequence_to_length(text_ids, pad_to_length, batch_first=True, padding_value=0) \
+        if pad_to_length \
+        else pad_sequence(text_ids, batch_first=True, padding_value=0)
 
     attention_mask = [torch.tensor(mask) for mask in attention_mask]
-    attention_mask = pad_sequence(attention_mask, batch_first=True, padding_value=0)
-
-    limit = len(text_ids[0])
-
-    token_type_ids = [[0] * limit]*len(text_ids)
-    token_type_ids = torch.tensor(token_type_ids)
-
-    label_ids = torch.tensor(label_ids, dtype=torch.float)
-
-    return text_ids, attention_mask, token_type_ids, label_ids
-
-
-def collate_single_label(batch):
-    """
-    input_ids & labels(could be string) -> padded input_ids and label_ids
-
-    :param batch:
-    :return:
-    """
-    text_ids, attention_mask, token_type_ids, label_list = zip(*batch)
-
-    text_ids = [torch.tensor(text_id) for text_id in text_ids]
-    text_ids = pad_sequence(text_ids, batch_first=True, padding_value=0)
-
-    attention_mask = [torch.tensor(mask) for mask in attention_mask]
-    attention_mask = pad_sequence(attention_mask, batch_first=True, padding_value=0)
+    attention_mask = pad_sequence_to_length(attention_mask, pad_to_length, batch_first=True, padding_value=0) \
+        if pad_to_length \
+        else pad_sequence(attention_mask, batch_first=True, padding_value=0)
 
     limit = len(text_ids[0])
 
     token_type_ids = [[0] * limit] * len(text_ids)
     token_type_ids = torch.tensor(token_type_ids)
-    label_list = torch.tensor(label_list)
 
-    return text_ids, attention_mask, token_type_ids, label_list
+    label_ids = torch.tensor(label_ids, dtype=torch.float if multi_label else torch.long)
+
+    return text_ids, attention_mask, token_type_ids, label_ids
 
 
-def train_per_ds(task_config):
+def train_per_ds(task_config, model_config_d):
     filename = task_config.filename
     test = task_config.test
     model_name = task_config.model_name
@@ -88,6 +69,7 @@ def train_per_ds(task_config):
 
     print("\nLoading model ...")
     model_config_dict = models[model_name]['config'].to_dict()
+    model_config_dict.update(model_config_d)
     model_config_dict['n_positions'] = max_length
     model_config_dict['label_names'] = val_set.labels_meta.names
     model_config_dict['num_labels'] = len(val_set.labels_meta.names)
@@ -113,8 +95,15 @@ def train_per_ds(task_config):
     test_set.cut_samples(max_length)
     # model.to(device)
 
-    train_dl = DataLoader(train_set, batch_size=batch_size, shuffle=True, collate_fn=collate_multi_label)
-    test_dl = DataLoader(test_set, batch_size=batch_size, shuffle=True, collate_fn=collate_single_label)
+    train_dl = DataLoader(
+        train_set, batch_size=batch_size, shuffle=True,
+        collate_fn=lambda b: collate_batch(b,
+                                           model_config.pad_to_length,
+                                           True))
+    test_dl = DataLoader(test_set, batch_size=batch_size,
+                         shuffle=True, collate_fn=lambda b: collate_batch(b,
+                                                                          model_config.pad_to_length,
+                                                                          model_config.multi_label))
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
 
@@ -145,20 +134,32 @@ def train_per_ds(task_config):
 
 if __name__ == "__main__":
     from losses import tversky_loss, dice_loss
-    conf_dict = {"filename":"dataset/imdb.wi",
-                 "emb_path":"models/emb_layer_glove",
-                 "model_name":"lstm",
-                 "batch_size":100,
-                 "max_length":1024,
+
+    model_config_dict = {"hidden_dropout_prob": 0.1,
+                         "emb_path": "models/emb_layer_glove",
+                         "num_filters": 3,
+                         "padding": 0,
+                         "dilation": 1,
+                         "max_length": 1024,
+                         "filters": [2, 3, 4],
+                         "stride": 1,
+                         "pad_to_length": 1024,
+                         "multi_label": False}
+
+    conf_dict = {"filename": "dataset/imdb.wi",
+                 "emb_path": "models/emb_layer_glove",
+                 "model_name": "cnn",
+                 "batch_size": 100,
+                 "max_length": 1024,
                  "epoch": 1,
                  "loss_func": BCEWithLogitsLoss(),
-                 "device":"cpu",
-                 "split_strategy":"uniform",
-                 "test":3,
+                 "device": "cpu",
+                 "split_strategy": "uniform",
+                 "test": 3,
                  "hidden_size": 10}
 
     task_config = TaskConfig()
     task_config.from_dict(conf_dict)
 
     # loss_func = dice_loss
-    res = train_per_ds(task_config)
+    res = train_per_ds(task_config, model_config_dict)

@@ -2,13 +2,31 @@ import os
 import datasets
 import itertools
 
+import torch
+
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from datasets import load_dataset
 import gensim.downloader as api
 from pathlib import Path
 from os import rename
+from torch.nn.utils.rnn import pad_sequence
 
+
+def pad_sequence_to_length(text_ids, max_length, batch_first=True, padding_value=0):
+    """
+
+    :param text_ids: [torch.tensor]
+    :return:
+    """
+    tensor_of_interest = text_ids[0]
+    length = tensor_of_interest.size(0)
+    len_to_pad = max_length - length
+    tensor_of_interest = torch.cat((tensor_of_interest, torch.tensor([0]*len_to_pad)))
+    text_ids[0] = tensor_of_interest
+
+    text_ids = pad_sequence(text_ids, batch_first=batch_first, padding_value=padding_value)
+    return text_ids
 
 def preprocess_text(text:str):
     text = text.lower()
