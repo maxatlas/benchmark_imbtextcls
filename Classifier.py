@@ -525,6 +525,8 @@ class HAN(TaskModel):
         self.word_hidden_size = config.word_hidden_size
         self.sent_hidden_size = config.sent_hidden_size
 
+        self.word_hidden_state, self.sent_hidden_state = None, None
+
         self.word_weight = nn.Parameter(torch.Tensor(2 * self.word_hidden_size, 2 * self.word_hidden_size))
         self.word_bias = nn.Parameter(torch.Tensor(1, 2 * self.word_hidden_size))
         self.word_context_weight = nn.Parameter(torch.Tensor(2 * self.word_hidden_size, 1))
@@ -534,9 +536,9 @@ class HAN(TaskModel):
         self.sent_context_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 1))
 
         self.word_gru = nn.GRU(self.emb_d, self.word_hidden_size,
-                               bidirectional=True, batch_first=True, dropout=config.hidden_dropout_prob)
+                               bidirectional=True, dropout=config.hidden_dropout_prob)
         self.sent_gru = nn.GRU(2 * self.word_hidden_size, self.sent_hidden_size,
-                               bidirectional=True, batch_first=True, dropout=config.hidden_dropout_prob)
+                               bidirectional=True, dropout=config.hidden_dropout_prob)
         self.cls = nn.Linear(2 * self.sent_hidden_size, self.num_labels)
 
         self._create_weights()
@@ -555,40 +557,51 @@ class HAN(TaskModel):
             batch_size = self.batch_size
         self.word_hidden_state = torch.zeros(2, batch_size, self.word_hidden_size)
         self.sent_hidden_state = torch.zeros(2, batch_size, self.sent_hidden_size)
-        if torch.cuda.is_available():
-            self.word_hidden_state = self.word_hidden_state.cuda()
-            self.sent_hidden_state = self.sent_hidden_state.cuda()
+        # if torch.cuda.is_available():
+        #     self.word_hidden_state = self.word_hidden_state.cuda()
+        #     self.sent_hidden_state = self.sent_hidden_state.cuda()
 
     def forward(self, input_ids):
         sent_list = []
 
         input_ids = input_ids.permute(1, 0, 2)
         for sent in input_ids:
-            output, self.word_hidden_state = self.word_att_net(sent.permute(1, 0), self.word_hidden_state)
+            sent = sent.permute(1,0)
+            embeds = self.emb(sent)
+            f_output, h_output = self.word_gru(embeds.float(), self.word_hidden_state)
+            output = matrix_mul(f_output, self.word_weight, self.word_bias)
+            output = matrix_mul(output, self.word_context_weight).permute(1, 0)
+            output = F.softmax(output, dim=1)
+            output = element_wise_mul(f_output, output.permute(1, 0))
+
+            self.word_hidden_state = h_output
+
             sent_list.append(output)
+
         output = torch.cat(sent_list, 0)
-        output, self.sent_hidden_state = self.sent_att_net(output, self.sent_hidden_state)
 
-        embeds = self.emb(input_ids)
-        f_output, h_output = self.word_gru(embeds.float(), self.word_hidden_state)
-        output = matrix_mul(f_output, self.word_weight, self.word_bias)
-        output = matrix_mul(output, self.context_weight).permute(1, 0)
-        output = F.softmax(output)
-        output = element_wise_mul(f_output, output.permute(1, 0))
+        f_output, h_output = self.sent_gru(output, self.sent_hidden_state)
+        self.sent_hidden_state = h_output
 
-        f_output, h_output = self.sent_gru(input, self.sent_hidden_state)
         output = matrix_mul(f_output, self.sent_weight, self.sent_bias)
-        output = matrix_mul(output, self.context_weight).permute(1, 0)
-        output = F.softmax(output)
+        output = matrix_mul(output, self.sent_context_weight).permute(1, 0)
+        output = F.softmax(output, dim=1)
         output = element_wise_mul(f_output, output.permute(1, 0)).squeeze(0)
-        output = self.cls(output)
+        logits = self.cls(output)
+        preds = torch.argmax(logits, axis=1)
 
+        return logits, preds
 
-        return output,
+    def batch_train(self, input_ids, attention_mask, token_type_ids, label_ids, loss_func):
+        logits, _ = self.forward(input_ids)
+        print(logits, label_ids)
+        print(logits.shape, label_ids.shape)
+        loss = loss_func(logits, label_ids)
 
-    def batch_train(self, input_ids, a, b, label_ids, loss_func):
-        return
+        return loss
 
     def batch_eval(self, input_ids, a, b, labels, label_names):
-        return
+        with torch.no_grad():
+            _, preds = self.forward(input_ids)
+        return metrics_frame(preds, labels, label_names)
 

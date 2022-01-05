@@ -3,6 +3,7 @@ import datasets
 import itertools
 
 import torch
+import math
 
 from collections import defaultdict
 import matplotlib.pyplot as plt
@@ -220,7 +221,8 @@ def get_max_lengths(input_ids):
     sorted_word_length = sorted(word_length_list)
     sorted_sent_length = sorted(sent_length_list)
 
-    return sorted_word_length[0], sorted_sent_length[0]
+    return sorted_word_length[int(0.8*len(sorted_word_length))], \
+           sorted_sent_length[int(0.8*len(sorted_sent_length))]
 
 
 # if __name__ == "__main__":

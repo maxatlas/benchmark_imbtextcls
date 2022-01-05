@@ -1,9 +1,11 @@
 from TaskDataset import split_tds
 from model_config import models
 from torch.utils.data import DataLoader
-from train import collate_batch, HAN_collate_batch
+from train import collate_batch, han_collate_batch
 from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 import torch
+
+from utils import get_max_lengths
 
 if __name__ == "__main__":
     # torch.manual_seed(66)
@@ -11,7 +13,7 @@ if __name__ == "__main__":
     filename="dataset/ag_news.wi"
     max_length=1024
     model_name="han"
-    batch_size=100
+    batch_size= test if test else 100
     split_strategy="uniform"
     emb_path="models/emb_layer_glove"
 
@@ -31,6 +33,10 @@ if __name__ == "__main__":
          }
 
     train_set, test_set, val_set = split_tds(filename, split_strategy)
+
+    word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
+    if word_max_length < max_length * 0.8: max_length = word_max_length
+
     train_set.data = train_set.data[:test]
     train_set.labels = train_set.labels[:test]
     train_set.set_label_ids()  # labels -> label_ids
@@ -65,19 +71,21 @@ if __name__ == "__main__":
     test_set.data, test_set.attention_mask, test_set.token_type_ids = \
         tknzed.get('input_ids'), tknzed.get('attention_mask'), tknzed.get('token_type_ids')
 
-    collate_fn = HAN_collate_batch if model_name == "han" else collate_batch
+    collate_fn = han_collate_batch if model_name == "han" else collate_batch
     train_dl = DataLoader(
         train_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_fn(b,
-                                           model_config.pad_to_length,
-                                           model_config.max_length,
-                                           True))
+                                        model_config.pad_to_length,
+                                        max_length,
+                                        sent_max_length,
+                                        True))
     test_dl = DataLoader(
         test_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_fn(b,
-                                           model_config.pad_to_length,
-                                           model_config.max_length,
-                                           model_config.multi_label))
+                                        model_config.pad_to_length,
+                                        max_length,
+                                        sent_max_length,
+                                        model_config.multi_label))
 
     batch = next(iter(train_dl))
 
@@ -90,7 +98,7 @@ if __name__ == "__main__":
     model.train()
 
     # batch = tuple(t.to("cuda:0") for t in batch)
-
+    out = model.forward(text_ids)
     logits = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids, loss_func=BCEWithLogitsLoss())
 
     print("\nEvaluating ...")
