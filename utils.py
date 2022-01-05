@@ -14,7 +14,6 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 def pad_sent_word(text_ids, word_max_length, sent_max_length):
-    attention_mask, token_type_ids = None, None
     text_ids = [[sent.extend([0] * (word_max_length - len(sent))) for sent in doc] for doc in text_ids] # pad words
     text_ids = [doc.extend([[0] * word_max_length]*(sent_max_length-len(doc))) for doc in text_ids] # pad sentences
     text_ids = [torch.tensor(text_id) for text_id in text_ids]
@@ -207,6 +206,21 @@ def rename_files(folder, old_str, new_str):
     for p in paths:
         rename(p, p.replace(old_str, new_str))
     print(os.listdir(folder))
+
+
+def get_max_lengths(input_ids):
+    word_length_list = []
+    sent_length_list = []
+
+    for sents in input_ids:
+        for words in sents:
+            word_length_list.append(len(words))
+        sent_length_list.append(len(sents))
+
+    sorted_word_length = sorted(word_length_list)
+    sorted_sent_length = sorted(sent_length_list)
+
+    return sorted_word_length[0], sorted_sent_length[0]
 
 
 # if __name__ == "__main__":

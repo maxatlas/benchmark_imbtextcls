@@ -520,19 +520,20 @@ class CNN(TaskModel):
 class HAN(TaskModel):
     def __init__(self, config):
         super(HAN, self).__init__(config)
+        self.batch_size = config.batch_size
         self.num_labels = config.num_labels
         self.word_hidden_size = config.word_hidden_size
         self.sent_hidden_size = config.sent_hidden_size
 
-        self.word_weight = nn.Parameter(torch.Tensor(2 * self.hidden_size, 2 * self.hidden_size))
-        self.word_bias = nn.Parameter(torch.Tensor(1, 2 * self.hidden_size))
-        self.word_context_weight = nn.Parameter(torch.Tensor(2 * self.hidden_size, 1))
+        self.word_weight = nn.Parameter(torch.Tensor(2 * self.word_hidden_size, 2 * self.word_hidden_size))
+        self.word_bias = nn.Parameter(torch.Tensor(1, 2 * self.word_hidden_size))
+        self.word_context_weight = nn.Parameter(torch.Tensor(2 * self.word_hidden_size, 1))
 
         self.sent_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 2 * config.sent_hidden_size))
         self.sent_bias = nn.Parameter(torch.Tensor(1, 2 * config.sent_hidden_size))
         self.sent_context_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 1))
 
-        self.word_gru = nn.GRU(self.emb_d, self.hidden_size,
+        self.word_gru = nn.GRU(self.emb_d, self.word_hidden_size,
                                bidirectional=True, batch_first=True, dropout=config.hidden_dropout_prob)
         self.sent_gru = nn.GRU(2 * self.word_hidden_size, self.sent_hidden_size,
                                bidirectional=True, batch_first=True, dropout=config.hidden_dropout_prob)
@@ -543,9 +544,9 @@ class HAN(TaskModel):
 
     def _create_weights(self, mean=0.0, std=0.05):
         self.word_weight.data.normal_(mean, std)
-        self.context_weight.data.normal_(mean, std)
+        self.word_context_weight.data.normal_(mean, std)
         self.sent_weight.data.normal_(mean, std)
-        self.context_weight.data.normal_(mean, std)
+        self.sent_context_weight.data.normal_(mean, std)
 
     def _init_hidden_state(self, last_batch_size=None):
         if last_batch_size:
@@ -565,7 +566,7 @@ class HAN(TaskModel):
         for sent in input_ids:
             output, self.word_hidden_state = self.word_att_net(sent.permute(1, 0), self.word_hidden_state)
             sent_list.append(output)
-        output = torch.cat(output_list, 0)
+        output = torch.cat(sent_list, 0)
         output, self.sent_hidden_state = self.sent_att_net(output, self.sent_hidden_state)
 
         embeds = self.emb(input_ids)
@@ -584,4 +585,10 @@ class HAN(TaskModel):
 
 
         return output,
+
+    def batch_train(self, input_ids, a, b, label_ids, loss_func):
+        return
+
+    def batch_eval(self, input_ids, a, b, labels, label_names):
+        return
 

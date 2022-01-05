@@ -1,6 +1,5 @@
 import torch
 import numpy as np
-import itertools
 
 from task_config import TaskConfig
 
@@ -22,6 +21,15 @@ def seed_random(seed):
         torch.cuda.manual_seed(seed)
 
 
+def HAN_collate_batch(batch, pad_to_length, word_max_length, sent_max_length):
+    text_ids, attention_mask, token_type_ids, label_ids = zip(*batch)
+    text_ids = [[sent + [0] * (word_max_length - len(sent)) for sent in doc] for doc in text_ids]  # pad words
+    text_ids = [doc + [[0] * word_max_length] * (sent_max_length - len(doc)) for doc in text_ids]  # pad sentences
+    text_ids = [torch.tensor(text_id) for text_id in text_ids]
+
+    return text_ids, attention_mask, token_type_ids, label_ids
+
+
 def collate_batch(batch, pad_to_length, word_max_length, multi_label):
     """
     input_ids & labels(could be string) -> padded input_ids and label_ids
@@ -33,8 +41,6 @@ def collate_batch(batch, pad_to_length, word_max_length, multi_label):
     """
     text_ids, attention_mask, token_type_ids, label_ids = zip(*batch)
 
-    # merge sentences for each document.
-    text_ids = [list(itertools.chain(*doc)) for doc in text_ids]
     # limit to max length
     text_ids = [text_id[:word_max_length] for text_id in text_ids]
     attention_mask = [mask[:word_max_length] for mask in attention_mask]
@@ -74,6 +80,8 @@ def train_per_ds(task_config, model_config_d):
     train_set.data = train_set.data[:test]
     train_set.labels = train_set.labels[:test]
     train_set.set_label_ids() # labels -> label_ids
+    if type(test_set.labels[0]) is list:
+        test_set.set_label_ids()
 
     test_set.labels = test_set.labels[:test]
     test_set.data = test_set.data[:test]
@@ -92,13 +100,12 @@ def train_per_ds(task_config, model_config_d):
     model_config_dict['max_position_embeddings'] = max_length
     model_config_dict['pad_token_id'] = 0
     model_config_dict['emb_path'] = emb_path
+    model_config_dict['batch_size'] = batch_size
     model_config = models[model_name]['config']
     # TODO: clean this.
     for key, value in model_config_dict.items():
-        try:
-            model_config.__setattr__(key, value)
-        except Exception:
-            continue
+        try: model_config.__setattr__(key, value)
+        except Exception: continue
 
     model = models[model_name]['model'](config=model_config)
 
@@ -112,18 +119,19 @@ def train_per_ds(task_config, model_config_d):
         tknzed.get('input_ids'), tknzed.get('attention_mask'), tknzed.get('token_type_ids')
     # model.to(device)
 
+    collate_fn = HAN_collate_batch if task_config.model_name == "han" else collate_batch
     train_dl = DataLoader(
         train_set, batch_size=batch_size, shuffle=True,
-        collate_fn=lambda b: collate_batch(b,
-                                           model_config.pad_to_length,
-                                           model_config.word_max_length,
-                                           True))
+        collate_fn=lambda b: collate_fn(b,
+                                        model_config.pad_to_length,
+                                        model_config.word_max_length,
+                                        True))
     test_dl = DataLoader(
         test_set, batch_size=batch_size,shuffle=True,
-        collate_fn=lambda b: collate_batch(b,
-                                           model_config.pad_to_length,
-                                           model_config.word_max_length,
-                                           model_config.multi_label))
+        collate_fn=lambda b: collate_fn(b,
+                                        model_config.pad_to_length,
+                                        model_config.word_max_length,
+                                        task_config.multi_label))
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
 
@@ -167,11 +175,13 @@ if __name__ == "__main__":
                          "word_max_length": 1024,
                          "sent_max_length": 50,
                          "pad_to_length": 1024,
-                         "multi_label": False}
+                         "word_hidden_size":10,
+                         "sent_hidden_size":10,
+                         }
 
-    conf_dict = {"filename": "dataset/ag_news.wi",
+    conf_dict = {"filename": "dataset/ag_news.tds",
                  "emb_path": "models/emb_layer_glove",
-                 "model_name": "xlnet",
+                 "model_name": "han",
                  "batch_size": 100,
                  "max_length": 1024,
                  "epoch": 1,
@@ -179,12 +189,13 @@ if __name__ == "__main__":
                  "device": "cpu",
                  "split_strategy": "uniform",
                  "test": 3,
-                 "hidden_size": 10}
+                 "hidden_size": 10,
+                 "multi_label": False}
 
     task_config = TaskConfig()
 
-    model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn']
-    for model_name in model_names[5:]:
+    model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn', 'han']
+    for model_name in model_names[:]:
         conf_dict['model_name'] = model_name
         task_config.from_dict(conf_dict)
         print(task_config.model_name)

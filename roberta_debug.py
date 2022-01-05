@@ -1,17 +1,16 @@
 from TaskDataset import split_tds
 from model_config import models
 from torch.utils.data import DataLoader
-from train import collate_multi_label, collate_single_label
+from train import collate_batch, HAN_collate_batch
 from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 import torch
-import config
 
 if __name__ == "__main__":
     # torch.manual_seed(66)
     test=3
-    filename="dataset/imdb.wi"
+    filename="dataset/ag_news.wi"
     max_length=1024
-    model_name="cnn"
+    model_name="han"
     batch_size=100
     split_strategy="uniform"
     emb_path="models/emb_layer_glove"
@@ -24,8 +23,12 @@ if __name__ == "__main__":
          "max_length": 1024,
          "filters": [2, 3, 4],
          "stride": 1,
-         "pad_to_length": 1024,
-         "multi_label": False}
+         "pad_to_length": 0,
+         "sent_max_length": 50,
+         "multi_label": False,
+         "word_hidden_size": 10,
+         "sent_hidden_size": 10,
+         }
 
     train_set, test_set, val_set = split_tds(filename, split_strategy)
     train_set.data = train_set.data[:test]
@@ -44,15 +47,14 @@ if __name__ == "__main__":
     model_config_dict.update(c)
     model_config_dict['n_positions'] = max_length
     model_config_dict['label_names'] = val_set.labels_meta.names
-    model_config_dict['num_labels'] = len(val_set.labels_meta.names)
+    model_config_dict['num_labels'] = val_set.labels_meta.num_classes
     model_config_dict['vocab_size'] = len(tokenizer)
     model_config_dict['max_position_embeddings'] = max_length
     model_config_dict['pad_token_id'] = 0
     model_config_dict['emb_path'] = emb_path
     model_config_dict['pack_to_max'] = 1
+    model_config_dict['batch_size'] = batch_size
     model_config = models[model_name]['config'].from_dict(model_config_dict)
-
-    model = models[model_name]['model'](config=model_config)
 
     print("\nTokenizing ...")
     tknzed = tokenizer(train_set.data)
@@ -63,22 +65,31 @@ if __name__ == "__main__":
     test_set.data, test_set.attention_mask, test_set.token_type_ids = \
         tknzed.get('input_ids'), tknzed.get('attention_mask'), tknzed.get('token_type_ids')
 
-    # Limit by max length
-    train_set.cut_samples(max_length)
-    test_set.cut_samples(max_length)
-    # model.to(device)
+    collate_fn = HAN_collate_batch if model_name == "han" else collate_batch
+    train_dl = DataLoader(
+        train_set, batch_size=batch_size, shuffle=True,
+        collate_fn=lambda b: collate_fn(b,
+                                           model_config.pad_to_length,
+                                           model_config.max_length,
+                                           True))
+    test_dl = DataLoader(
+        test_set, batch_size=batch_size, shuffle=True,
+        collate_fn=lambda b: collate_fn(b,
+                                           model_config.pad_to_length,
+                                           model_config.max_length,
+                                           model_config.multi_label))
 
-    train_dl = DataLoader(train_set, batch_size=batch_size, shuffle=True, collate_fn=collate_multi_label)
-    test_dl = DataLoader(test_set, batch_size=batch_size, shuffle=True, collate_fn=collate_single_label)
+    batch = next(iter(train_dl))
 
+    text_ids, attention_mask, token_type_ids, label_ids = batch
+
+    model = models[model_name]['model'](config=model_config)
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
 
     print("\nTraining ...")
     model.train()
 
-    batch = next(iter(train_dl))
     # batch = tuple(t.to("cuda:0") for t in batch)
-    text_ids, attention_mask, token_type_ids, label_ids = batch
 
     logits = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids, loss_func=BCEWithLogitsLoss())
 
