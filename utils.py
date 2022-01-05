@@ -13,6 +13,39 @@ from os import rename
 from torch.nn.utils.rnn import pad_sequence
 
 
+def pad_sent_word(text_ids, word_max_length, sent_max_length):
+    attention_mask, token_type_ids = None, None
+    text_ids = [[sent.extend([0] * (word_max_length - len(sent))) for sent in doc] for doc in text_ids] # pad words
+    text_ids = [doc.extend([[0] * word_max_length]*(sent_max_length-len(doc))) for doc in text_ids] # pad sentences
+    text_ids = [torch.tensor(text_id) for text_id in text_ids]
+
+    return text_ids
+
+
+def matrix_mul(input, weight, bias=False):
+    feature_list = []
+    for feature in input:
+        feature = torch.mm(feature, weight)
+        if isinstance(bias, torch.nn.parameter.Parameter):
+            feature = feature + bias.expand(feature.size()[0], bias.size()[1])
+        feature = torch.tanh(feature).unsqueeze(0)
+        feature_list.append(feature)
+
+    return torch.cat(feature_list, 0).squeeze()
+
+
+def element_wise_mul(input1, input2):
+
+    feature_list = []
+    for feature_1, feature_2 in zip(input1, input2):
+        feature_2 = feature_2.unsqueeze(1).expand_as(feature_1)
+        feature = feature_1 * feature_2
+        feature_list.append(feature.unsqueeze(0))
+    output = torch.cat(feature_list, 0)
+
+    return torch.sum(output, 0).unsqueeze(0)
+
+
 def pad_sequence_to_length(text_ids, max_length, batch_first=True, padding_value=0):
     """
 
@@ -82,7 +115,7 @@ def get_kv(kvtype:str):
     :param kvtype: "glove"/"word2vec"/"fasttext"
     :return: the weight matrix as KeyVectors
     """
-    from config import kvtypes
+    from task_config import kvtypes
     kv = api.load(kvtypes.get(kvtype))
     return kv
 

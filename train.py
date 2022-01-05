@@ -1,21 +1,28 @@
 import torch
+import numpy as np
+import itertools
 
-from config import TaskConfig
+from task_config import TaskConfig
 
 from datetime import datetime
 from tqdm import tqdm
-from TaskDataset import split_tds, TaskDataset
-from torch.utils.data import DataLoader, RandomSampler
+from TaskDataset import split_tds
+from torch.utils.data import DataLoader
 from model_config import *
 from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 
 from torch.nn.utils.rnn import pad_sequence
 from utils import pad_sequence_to_length
 
-torch.manual_seed(0)
+
+def seed_random(seed):
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
 
 
-def collate_batch(batch, pad_to_length, multi_label):
+def collate_batch(batch, pad_to_length, word_max_length, multi_label):
     """
     input_ids & labels(could be string) -> padded input_ids and label_ids
 
@@ -25,6 +32,12 @@ def collate_batch(batch, pad_to_length, multi_label):
     :return:
     """
     text_ids, attention_mask, token_type_ids, label_ids = zip(*batch)
+
+    # merge sentences for each document.
+    text_ids = [list(itertools.chain(*doc)) for doc in text_ids]
+    # limit to max length
+    text_ids = [text_id[:word_max_length] for text_id in text_ids]
+    attention_mask = [mask[:word_max_length] for mask in attention_mask]
 
     text_ids = [torch.tensor(text_id) for text_id in text_ids]
     text_ids = pad_sequence_to_length(text_ids, pad_to_length, batch_first=True, padding_value=0) \
@@ -79,7 +92,13 @@ def train_per_ds(task_config, model_config_d):
     model_config_dict['max_position_embeddings'] = max_length
     model_config_dict['pad_token_id'] = 0
     model_config_dict['emb_path'] = emb_path
-    model_config = models[model_name]['config'].from_dict(model_config_dict)
+    model_config = models[model_name]['config']
+    # TODO: clean this.
+    for key, value in model_config_dict.items():
+        try:
+            model_config.__setattr__(key, value)
+        except Exception:
+            continue
 
     model = models[model_name]['model'](config=model_config)
 
@@ -91,21 +110,19 @@ def train_per_ds(task_config, model_config_d):
     tknzed = tokenizer(test_set.data)
     test_set.data, test_set.attention_mask, test_set.token_type_ids = \
         tknzed.get('input_ids'), tknzed.get('attention_mask'), tknzed.get('token_type_ids')
-
-    # Limit by max length
-    train_set.cut_samples(max_length)
-    test_set.cut_samples(max_length)
     # model.to(device)
 
     train_dl = DataLoader(
         train_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_batch(b,
                                            model_config.pad_to_length,
+                                           model_config.word_max_length,
                                            True))
     test_dl = DataLoader(
         test_set, batch_size=batch_size,shuffle=True,
         collate_fn=lambda b: collate_batch(b,
                                            model_config.pad_to_length,
+                                           model_config.word_max_length,
                                            model_config.multi_label))
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=0.001)
@@ -138,7 +155,7 @@ def train_per_ds(task_config, model_config_d):
 
 if __name__ == "__main__":
     from losses import tversky_loss, dice_loss
-
+    seed_random(100)
     model_config_dict = {"hidden_dropout_prob": 0.1,
                          "emb_path": "models/emb_layer_glove",
                          "num_filters": 3,
@@ -147,12 +164,14 @@ if __name__ == "__main__":
                          "max_length": 1024,
                          "filters": [2, 3, 4],
                          "stride": 1,
+                         "word_max_length": 1024,
+                         "sent_max_length": 50,
                          "pad_to_length": 1024,
                          "multi_label": False}
 
-    conf_dict = {"filename": "dataset/imdb.wi",
+    conf_dict = {"filename": "dataset/ag_news.wi",
                  "emb_path": "models/emb_layer_glove",
-                 "model_name": "rcnn",
+                 "model_name": "xlnet",
                  "batch_size": 100,
                  "max_length": 1024,
                  "epoch": 1,
@@ -163,7 +182,13 @@ if __name__ == "__main__":
                  "hidden_size": 10}
 
     task_config = TaskConfig()
-    task_config.from_dict(conf_dict)
 
-    # loss_func = dice_loss
-    res = train_per_ds(task_config, model_config_dict)
+    model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn']
+    for model_name in model_names[5:]:
+        conf_dict['model_name'] = model_name
+        task_config.from_dict(conf_dict)
+        print(task_config.model_name)
+
+        res = train_per_ds(task_config, model_config_dict)
+
+

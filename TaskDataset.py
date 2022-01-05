@@ -1,7 +1,7 @@
 import random
 import torch
 
-from config import split_ratio, split_strategies, imb_ratio
+from task_config import split_ratio, split_strategies, imb_ratio
 from dill import dump, load
 from torch.utils.data import Dataset
 
@@ -33,7 +33,8 @@ class TaskDataset(Dataset):
         return len(self.labels)
 
     def __getitem__(self, i):
-        return self.data[i], self.attention_mask[i] if self.attention_mask else [], self.token_type_ids[i] if self.token_type_ids else [], self.labels[i]
+        return self.data[i], self.attention_mask[i] if self.attention_mask else [], \
+               self.token_type_ids[i] if self.token_type_ids else [], self.labels[i]
 
     def get_labels(self):
         return self.labels
@@ -80,14 +81,6 @@ class TaskDataset(Dataset):
 
     def set_label_ids(self):
         self.labels = self.get_label_ids()
-
-    def cut_samples(self, limit):
-        if type(self.data[0]) is list:
-            data = [sample[:limit] for sample in self.data]
-            self.data = data
-        if self.attention_mask:
-            mask = [sample[:limit] for sample in self.attention_mask]
-            self.attention_mask = mask
 
 
 def set_imbalance_by_cls(no_by_cls:dict, tolerance, threshold, a=0.75, b=2.1):

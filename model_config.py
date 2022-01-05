@@ -3,7 +3,7 @@ from transformers import (
     GPT2Config, BertConfig, XLNetConfig, RobertaConfig)
 from Classifier import (
     GPT2, BERT, XLNet, Roberta,
-    LSTM, CNN, RCNN
+    LSTM, CNN, RCNN, HAN
 )
 
 
@@ -24,8 +24,9 @@ class ModelConfig():
 
 
 class faketkn:
-    def __init__(self):
+    def __init__(self, tokenizer=None):
         self.model_max_length = None
+        self.tokenizer = tokenizer
 
     def __len__(self):
         return self.model_max_length
@@ -72,6 +73,12 @@ models = {
     "rcnn":{
         "tokenizer": faketkn(),
         "model": RCNN,
+        "config": ModelConfig()
+    },
+
+    "han":{
+        "tokenizer": faketkn(),
+        "model": HAN,
         "config": ModelConfig()
     }
 }

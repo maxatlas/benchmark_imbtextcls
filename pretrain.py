@@ -1,13 +1,12 @@
 import spacy
-import itertools
 
+from nltk.tokenize import sent_tokenize, word_tokenize
 from time import time
 from dill import dump, load
-from TaskDataset import TaskDataset, split_tds
-from datasets import load_dataset, dataset_dict, ClassLabel
-from config import *
+from TaskDataset import TaskDataset
+from datasets import load_dataset, ClassLabel
+from task_config import *
 from pathlib import Path
-from torchtext.data import get_tokenizer
 from utils import (get_kv, get_feature_from_all_splits,
                    count_word)
 
@@ -41,7 +40,7 @@ def replace_tkndata_to_index(filepath:str, w2ipath:str):
 
     w2i = load(open(w2ipath, "rb"))
     data = tds.data
-    data = [[w2i.get(word, 0) for word in doc] for doc in data]
+    data = [[[w2i.get(word, 0) for word in sent] for sent in doc] for doc in data]
 
     tds.data = data
     tds.save(save_file)
@@ -67,8 +66,10 @@ def build_emb_layer_from_all_datasets(dataset_folder="dataset", cutoff=400_000):
     file_paths = [str(file) for file in Path("./%s" %dataset_folder).glob('*.tkn')]
     tds = TaskDataset()
 
-    tkndata = iter(itertools.chain.from_iterable(tds.load(path).data for path in file_paths))
-    tkndata = iter(itertools.chain.from_iterable(tkndata))
+    tkndata = iter(itertools.chain.from_iterable(tds.load(path).data for path in file_paths)) # docs
+    tkndata = iter(itertools.chain.from_iterable(tkndata)) # sentences
+    tkndata = iter(itertools.chain.from_iterable(tkndata)) # words
+
     print("Counting words ...")
 
     start = time()
@@ -82,7 +83,7 @@ def build_emb_layer_from_all_datasets(dataset_folder="dataset", cutoff=400_000):
     tkndata = [(key, count_dict[key]) for key in count_dict]
     tkndata = sorted(tkndata, key=lambda x:x[1], reverse=True)[:cutoff]
     tkndata = [key for (key, count) in tkndata]
-    tkndata = ["[PAD]"] + tkndata
+    tkndata = ["[PAD]", ["[UNK]"]] + tkndata
 
     word2index = {word: i for i, word in enumerate(tkndata)}
 
@@ -138,10 +139,9 @@ def prerun_per_dataset(dconfig, tokenizer, save_folder="dataset", suffix=""):
         if tokenizer == "spacy":
             nlp = spacy.load("en_core_web_sm")
             docs = nlp.pipe(texts, n_process=2, batch_size=2000)
-            docs = [[tok.text for tok in doc] for doc in docs]
+            docs = [[[tok.text for tok in sent] for sent in doc.sents] for doc in docs]
         else:
-            tokenizer = get_tokenizer("basic_english")
-            docs = [tokenizer(text) for text in texts]
+            docs = [[word_tokenize(sent) for sent in sent_tokenize(doc)] for doc in texts]
 
     tds = TaskDataset(dname=dconfig['dname'], labels=labels, data=docs,
                       labels_meta=labels_meta)
@@ -149,7 +149,7 @@ def prerun_per_dataset(dconfig, tokenizer, save_folder="dataset", suffix=""):
 
 
 def main(folder):
-    for dmeta in datasets_meta[:0]:
+    for dmeta in datasets_meta[14:17]:
         print("Pretrain %s ..." % dmeta['dname'])
         suffix = ""
         if dmeta['dname'] == ["amazon_reviews_multi", "en"]: suffix = "_%s" % dmeta['label_field']

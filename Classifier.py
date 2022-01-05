@@ -4,6 +4,7 @@ import torch.nn as nn
 
 import numpy as np
 from torch.autograd import Variable
+from utils import matrix_mul, element_wise_mul
 from torch.nn import functional as F
 from transformers import (GPT2PreTrainedModel, GPT2Model,
                           BertPreTrainedModel, BertModel,
@@ -49,9 +50,9 @@ def build_emb_layer(tknwords:set, kv: KeyedVectors, trainable=1):
         wm = np.zeros((num_emb, emb_dim))
         for i, word in enumerate(tknwords[1:]):
             try:
-                wm[i+1] = kv[word]
+                wm[i+2] = kv[word]
             except KeyError:
-                wm[i+1] = np.random.normal(scale=0.6, size=(emb_dim, ))
+                wm[i+2] = np.random.normal(scale=0.6, size=(emb_dim, ))
                 unfound_words.add(word)
         wm = torch.tensor(wm)
         return wm
@@ -101,6 +102,12 @@ class TaskModel(nn.Module):
 
         self.emb = nn.Embedding(vocab_size, self.emb_d)
         self.emb.load_state_dict(emb_weights)
+
+    def freeze_emb(self):
+        self.emb.weight.requires_grad = False
+
+    def unfreeze_emb(self):
+        self.emb.weight.requires_grad = True
 
 
 class GPT2(GPT2PreTrainedModel):
@@ -152,7 +159,7 @@ class GPT2(GPT2PreTrainedModel):
 
         return loss
 
-    def batch_eval(self, input_ids, labels, label_names):
+    def batch_eval(self, input_ids, a, b, labels, label_names):
         with torch.no_grad():
             _, preds = self.forward(input_ids)
         return metrics_frame(preds, labels, label_names)
@@ -339,8 +346,6 @@ class XLNet(XLNetPreTrainedModel):
         logits = self.cls_layer(output)
         preds = torch.argmax(logits, axis=1)
 
-        print(output)
-
         return preds, logits
 
     def batch_train(self,
@@ -402,60 +407,26 @@ class RCNN(TaskModel):
     def __init__(self, config):
         super(RCNN, self).__init__(config)
 
-        """
-        Arguments
-        ---------
-        batch_size : Size of the batch which is same as the batch_size of the data returned by the TorchText BucketIterator
-        output_size : 2 = (pos, neg)
-        hidden_sie : Size of the hidden_state of the LSTM
-        vocab_size : Size of the vocabulary containing unique words
-        embedding_length : Embedding dimension of GloVe word embeddings
-        weights : Pre-trained GloVe word_embeddings which we will use to create our word_embedding look-up table 
-
-        """
-
         self.num_labels = config.num_labels
         self.hidden_size = config.hidden_size
 
-        self.lstm = nn.LSTM(self.emb_d, self.hidden_size, dropout=config.hidden_dropout_prob, bidirectional=True)
+        self.lstm = nn.LSTM(self.emb_d, self.hidden_size,
+                            dropout=config.hidden_dropout_prob, bidirectional=True)
         self.W2 = nn.Linear(2 * self.hidden_size + self.emb_d, self.hidden_size)
         self.cls_layer = nn.Linear(self.hidden_size, self.num_labels)
 
-    def forward(self, input_ids, batch_size=None):
-
-        """
-        Parameters
-        ----------
-        input_sentence: input_sentence of shape = (batch_size, num_sequences)
-        batch_size : default = None. Used only for prediction on a single sentence after training (batch_size = 1)
-
-        Returns
-        -------
-        Output of the linear layer containing logits for positive & negative class which receives its input as the final_hidden_state of the LSTM
-        final_output.shape = (batch_size, output_size)
-
-        """
-
-        """
-
-        The idea of the paper "Recurrent Convolutional Neural Networks for Text Classification" is that we pass the embedding vector
-        of the text sequences through a bidirectional LSTM and then for each sequence, our final embedding vector is the concatenation of 
-        its own GloVe embedding and the left and right contextual embedding which in bidirectional LSTM is same as the corresponding hidden
-        state. This final embedding is passed through a linear layer which maps this long concatenated encoding vector back to the hidden_size
-        vector. After this step, we use a max pooling layer across all sequences of texts. This converts any varying length text into a fixed
-        dimension tensor of size (batch_size, hidden_size) and finally we map this to the output layer.
-        """
-        x = self.emb(
-            input_ids)  # embedded input of shape = (batch_size, num_sequences, embedding_length)
+    def forward(self, input_ids):
+        x = self.emb(input_ids)
         x = x.permute(1, 0, 2)  # input.size() = (num_sequences, batch_size, embedding_length)
 
-        output, (final_hidden_state, final_cell_state) = self.lstm(x)
+        output, (_, _) = self.lstm(x)
 
         final_encoding = torch.cat((output, x), 2).permute(1, 0, 2)
         y = self.W2(final_encoding)  # y.size() = (batch_size, num_sequences, hidden_size)
         y = y.permute(0, 2, 1)  # y.size() = (batch_size, hidden_size, num_sequences)
         y = F.max_pool1d(y, y.size(2))  # y.size() = (batch_size, hidden_size, 1)
         y = y.squeeze(2)
+
         logits = self.cls_layer(y)
         preds = torch.argmax(logits, dim=1)
 
@@ -544,3 +515,73 @@ class CNN(TaskModel):
 
         res = metrics_frame(preds, labels, label_names)
         return res
+
+
+class HAN(TaskModel):
+    def __init__(self, config):
+        super(HAN, self).__init__(config)
+        self.num_labels = config.num_labels
+        self.word_hidden_size = config.word_hidden_size
+        self.sent_hidden_size = config.sent_hidden_size
+
+        self.word_weight = nn.Parameter(torch.Tensor(2 * self.hidden_size, 2 * self.hidden_size))
+        self.word_bias = nn.Parameter(torch.Tensor(1, 2 * self.hidden_size))
+        self.word_context_weight = nn.Parameter(torch.Tensor(2 * self.hidden_size, 1))
+
+        self.sent_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 2 * config.sent_hidden_size))
+        self.sent_bias = nn.Parameter(torch.Tensor(1, 2 * config.sent_hidden_size))
+        self.sent_context_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 1))
+
+        self.word_gru = nn.GRU(self.emb_d, self.hidden_size,
+                               bidirectional=True, batch_first=True, dropout=config.hidden_dropout_prob)
+        self.sent_gru = nn.GRU(2 * self.word_hidden_size, self.sent_hidden_size,
+                               bidirectional=True, batch_first=True, dropout=config.hidden_dropout_prob)
+        self.cls = nn.Linear(2 * self.sent_hidden_size, self.num_labels)
+
+        self._create_weights()
+        self._init_hidden_state()
+
+    def _create_weights(self, mean=0.0, std=0.05):
+        self.word_weight.data.normal_(mean, std)
+        self.context_weight.data.normal_(mean, std)
+        self.sent_weight.data.normal_(mean, std)
+        self.context_weight.data.normal_(mean, std)
+
+    def _init_hidden_state(self, last_batch_size=None):
+        if last_batch_size:
+            batch_size = last_batch_size
+        else:
+            batch_size = self.batch_size
+        self.word_hidden_state = torch.zeros(2, batch_size, self.word_hidden_size)
+        self.sent_hidden_state = torch.zeros(2, batch_size, self.sent_hidden_size)
+        if torch.cuda.is_available():
+            self.word_hidden_state = self.word_hidden_state.cuda()
+            self.sent_hidden_state = self.sent_hidden_state.cuda()
+
+    def forward(self, input_ids):
+        sent_list = []
+
+        input_ids = input_ids.permute(1, 0, 2)
+        for sent in input_ids:
+            output, self.word_hidden_state = self.word_att_net(sent.permute(1, 0), self.word_hidden_state)
+            sent_list.append(output)
+        output = torch.cat(output_list, 0)
+        output, self.sent_hidden_state = self.sent_att_net(output, self.sent_hidden_state)
+
+        embeds = self.emb(input_ids)
+        f_output, h_output = self.word_gru(embeds.float(), self.word_hidden_state)
+        output = matrix_mul(f_output, self.word_weight, self.word_bias)
+        output = matrix_mul(output, self.context_weight).permute(1, 0)
+        output = F.softmax(output)
+        output = element_wise_mul(f_output, output.permute(1, 0))
+
+        f_output, h_output = self.sent_gru(input, self.sent_hidden_state)
+        output = matrix_mul(f_output, self.sent_weight, self.sent_bias)
+        output = matrix_mul(output, self.context_weight).permute(1, 0)
+        output = F.softmax(output)
+        output = element_wise_mul(f_output, output.permute(1, 0)).squeeze(0)
+        output = self.cls(output)
+
+
+        return output,
+
