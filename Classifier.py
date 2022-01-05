@@ -566,7 +566,7 @@ class HAN(TaskModel):
 
         input_ids = input_ids.permute(1, 0, 2)
         for sent in input_ids:
-            sent = sent.permute(1,0)
+            sent = sent.permute(1, 0)
             embeds = self.emb(sent)
             f_output, h_output = self.word_gru(embeds.float(), self.word_hidden_state)
             output = matrix_mul(f_output, self.word_weight, self.word_bias)

@@ -82,8 +82,9 @@ def train_per_ds(task_config, model_config_d):
 
     train_set, test_set, val_set = split_tds(filename, split_strategy)
 
-    word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
-    if word_max_length < max_length * 0.8: max_length = word_max_length
+    word_max_length, sent_max_length = max_length, 1
+    if model_name == "han":
+        word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
 
     train_set.data = train_set.data[:test]
     train_set.labels = train_set.labels[:test]
@@ -99,16 +100,16 @@ def train_per_ds(task_config, model_config_d):
 
     print("\nLoading tokenizer ...")
     tokenizer = models[model_name]['tokenizer']
-    tokenizer.model_max_length = max_length
+    tokenizer.model_max_length = word_max_length
 
     print("\nLoading model ...")
     model_config_dict = models[model_name]['config'].to_dict()
     model_config_dict.update(model_config_d)
-    model_config_dict['n_positions'] = max_length
+    model_config_dict['n_positions'] = word_max_length
     model_config_dict['label_names'] = val_set.labels_meta.names
     model_config_dict['num_labels'] = len(val_set.labels_meta.names)
     model_config_dict['vocab_size'] = len(tokenizer)
-    model_config_dict['max_position_embeddings'] = max_length
+    model_config_dict['max_position_embeddings'] = word_max_length
     model_config_dict['pad_token_id'] = 0
     model_config_dict['emb_path'] = emb_path
     model_config_dict['batch_size'] = batch_size
@@ -136,14 +137,14 @@ def train_per_ds(task_config, model_config_d):
         train_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_fn(b,
                                         model_config.pad_to_length,
-                                        max_length,
+                                        word_max_length,
                                         sent_max_length,
                                         True))
     test_dl = DataLoader(
         test_set, batch_size=batch_size,shuffle=True,
         collate_fn=lambda b: collate_fn(b,
                                         model_config.pad_to_length,
-                                        max_length,
+                                        word_max_length,
                                         sent_max_length,
                                         model_config.multi_label))
 
@@ -189,11 +190,11 @@ if __name__ == "__main__":
                          "word_max_length": 1024,
                          "sent_max_length": 50,
                          "pad_to_length": 1024,
-                         "sent_hidden_size":10,
-                         "word_hidden_size":10,
+                         "sent_hidden_size": 10,
+                         "word_hidden_size": 10,
                          }
 
-    conf_dict = {"filename": "dataset/ag_news.wi",
+    conf_dict = {"filename": "dataset/ag_news.tds",
                  "emb_path": "models/emb_layer_glove",
                  "model_name": "han",
                  "batch_size": 100,
@@ -208,7 +209,7 @@ if __name__ == "__main__":
     task_config = TaskConfig()
 
     model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn', 'han']
-    for model_name in model_names[-1:]:
+    for model_name in model_names[2:]:
         conf_dict['model_name'] = model_name
         task_config.from_dict(conf_dict)
         print(task_config.model_name)

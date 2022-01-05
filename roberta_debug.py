@@ -10,9 +10,9 @@ from utils import get_max_lengths
 if __name__ == "__main__":
     # torch.manual_seed(66)
     test=3
-    filename="dataset/ag_news.wi"
+    filename="dataset/ag_news.tds"
     max_length=1024
-    model_name="han"
+    model_name="gpt"
     batch_size= test if test else 100
     split_strategy="uniform"
     emb_path="models/emb_layer_glove"
@@ -34,8 +34,9 @@ if __name__ == "__main__":
 
     train_set, test_set, val_set = split_tds(filename, split_strategy)
 
-    word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
-    if word_max_length < max_length * 0.8: max_length = word_max_length
+    word_max_length, sent_max_length = max_length, 1
+    if model_name == "han":
+        word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
 
     train_set.data = train_set.data[:test]
     train_set.labels = train_set.labels[:test]
@@ -60,7 +61,13 @@ if __name__ == "__main__":
     model_config_dict['emb_path'] = emb_path
     model_config_dict['pack_to_max'] = 1
     model_config_dict['batch_size'] = batch_size
-    model_config = models[model_name]['config'].from_dict(model_config_dict)
+    model_config = models[model_name]['config']
+
+    for key, value in model_config_dict.items():
+        try:
+            model_config.__setattr__(key, value)
+        except Exception:
+            continue
 
     print("\nTokenizing ...")
     tknzed = tokenizer(train_set.data)
