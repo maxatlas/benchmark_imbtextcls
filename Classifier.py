@@ -46,21 +46,22 @@ def transform_labels(labels, label_no):
 
 
 def build_emb_layer(tknwords:set, kv: KeyedVectors, trainable=1):
-    def _create_weight_matrix():
+    def _create_weight_matrix(start_i):
         wm = np.zeros((num_emb, emb_dim))
-        for i, word in enumerate(tknwords[1:]):
+        for i, word in enumerate(tknwords[start_i:]):
             try:
-                wm[i+2] = kv[word]
+                wm[i+start_i] = kv[word]
             except KeyError:
-                wm[i+2] = np.random.normal(scale=0.6, size=(emb_dim, ))
+                wm[i+start_i] = np.random.normal(scale=0.6, size=(emb_dim, ))
                 unfound_words.add(word)
         wm = torch.tensor(wm)
         return wm
 
     unfound_words = set()
     num_emb, emb_dim = len(tknwords), len(kv['the'])
+    word_start_i = 2
     emb_layer = nn.Embedding(num_emb, emb_dim)
-    emb_layer.load_state_dict({'weight': _create_weight_matrix()})
+    emb_layer.load_state_dict({'weight': _create_weight_matrix(word_start_i)})
     if not trainable: emb_layer.weight.requires_grad = False
 
     return emb_layer, unfound_words

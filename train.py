@@ -10,8 +10,7 @@ from torch.utils.data import DataLoader
 from model_config import *
 from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 
-from torch.nn.utils.rnn import pad_sequence
-from utils import pad_sequence_to_length, get_max_lengths
+from utils import get_max_lengths
 
 
 def seed_random(seed):
@@ -21,7 +20,7 @@ def seed_random(seed):
         torch.cuda.manual_seed(seed)
 
 
-def han_collate_batch(batch, pad_to_length, word_max_length, sent_max_length, multi_label):
+def han_collate_batch(batch, word_max_length, sent_max_length, multi_label):
     text_ids, attention_mask, token_type_ids, label_ids = zip(*batch)
     text_ids = [[(sent + [0] * (word_max_length - len(sent)))
                  [:word_max_length] for sent in doc] for doc in text_ids]  # pad words
@@ -34,7 +33,7 @@ def han_collate_batch(batch, pad_to_length, word_max_length, sent_max_length, mu
     return text_ids, attention_mask, token_type_ids, label_ids
 
 
-def collate_batch(batch, pad_to_length, word_max_length, sent_max_length, multi_label):
+def collate_batch(batch, word_max_length, sent_max_length, multi_label):
     """
     input_ids & labels(could be string) -> padded input_ids and label_ids
 
@@ -46,22 +45,15 @@ def collate_batch(batch, pad_to_length, word_max_length, sent_max_length, multi_
     text_ids, attention_mask, token_type_ids, label_ids = zip(*batch)
 
     # limit to max length
-    text_ids = [text_id[:word_max_length] for text_id in text_ids]
-    attention_mask = [mask[:word_max_length] for mask in attention_mask]
+    text_ids = [(doc + [0] * (word_max_length - len(doc)))
+                [:word_max_length] for doc in text_ids]  # pad words
+    attention_mask = [(mask + [0] * (word_max_length - len(mask)))
+                      [:word_max_length] for mask in attention_mask]
 
-    text_ids = [torch.tensor(text_id) for text_id in text_ids]
-    text_ids = pad_sequence_to_length(text_ids, pad_to_length, batch_first=True, padding_value=0) \
-        if pad_to_length \
-        else pad_sequence(text_ids, batch_first=True, padding_value=0)
+    text_ids = torch.tensor(text_ids)
+    attention_mask = torch.tensor(attention_mask)
 
-    attention_mask = [torch.tensor(mask) for mask in attention_mask]
-    attention_mask = pad_sequence_to_length(attention_mask, pad_to_length, batch_first=True, padding_value=0) \
-        if pad_to_length \
-        else pad_sequence(attention_mask, batch_first=True, padding_value=0)
-
-    limit = len(text_ids[0])
-
-    token_type_ids = [[0] * limit] * len(text_ids)
+    token_type_ids = [[0] * word_max_length] * len(text_ids)
     token_type_ids = torch.tensor(token_type_ids)
 
     label_ids = torch.tensor(label_ids, dtype=torch.float if multi_label else torch.long)
@@ -70,21 +62,15 @@ def collate_batch(batch, pad_to_length, word_max_length, sent_max_length, multi_
 
 
 def train_per_ds(task_config, model_config_d):
-    filename = task_config.filename
     test = task_config.test
     model_name = task_config.model_name
-    max_length = task_config.max_length
     batch_size = test if test else task_config.batch_size
-    epoch = task_config.epoch
-    loss_func = task_config.loss_func
-    split_strategy = task_config.split_strategy
-    emb_path = task_config.emb_path
 
-    train_set, test_set, val_set = split_tds(filename, split_strategy)
+    train_set, test_set, val_set = split_tds(task_config.filename, task_config.split_strategy)
 
-    word_max_length, sent_max_length = max_length, 1
-    if model_name == "han":
-        word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
+    word_max_length, sent_max_length = (get_max_lengths(train_set.data + test_set.data)[1], 1)\
+                                           if task_config.filename.endswith(".tds") \
+                                           else get_max_lengths(train_set.data + test_set.data)
 
     train_set.data = train_set.data[:test]
     train_set.labels = train_set.labels[:test]
@@ -111,7 +97,7 @@ def train_per_ds(task_config, model_config_d):
     model_config_dict['vocab_size'] = len(tokenizer)
     model_config_dict['max_position_embeddings'] = word_max_length
     model_config_dict['pad_token_id'] = 0
-    model_config_dict['emb_path'] = emb_path
+    model_config_dict['emb_path'] = task_config.emb_path
     model_config_dict['batch_size'] = batch_size
     model_config = models[model_name]['config']
     # TODO: clean this.
@@ -136,14 +122,12 @@ def train_per_ds(task_config, model_config_d):
     train_dl = DataLoader(
         train_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_fn(b,
-                                        model_config.pad_to_length,
                                         word_max_length,
                                         sent_max_length,
                                         True))
     test_dl = DataLoader(
         test_set, batch_size=batch_size,shuffle=True,
         collate_fn=lambda b: collate_fn(b,
-                                        model_config.pad_to_length,
                                         word_max_length,
                                         sent_max_length,
                                         model_config.multi_label))
@@ -152,11 +136,14 @@ def train_per_ds(task_config, model_config_d):
 
     print("\nTraining ...")
     model.train()
-    for _ in range(epoch):
+    print(train_set.data)
+    for _ in range(task_config.epoch):
         for batch in tqdm(train_dl, desc="Iteration"):
             # batch = tuple(t.to("cuda:0") for t in batch)
             text_ids, attention_mask, token_type_ids, label_ids = batch
-            loss = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids, loss_func=loss_func)
+            print(text_ids)
+            loss = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids,
+                                     loss_func=task_config.loss_func)
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -166,7 +153,6 @@ def train_per_ds(task_config, model_config_d):
     for batch in tqdm(test_dl, desc="Iteration"):
         # batch = tuple(t.to("cuda:0") for t in batch)
         text_ids, attention_mask, token_type_ids, labels = batch
-
         res = model.batch_eval(text_ids, attention_mask, token_type_ids, labels, model_config.label_names)
 
     if not test: model.save_pretrained(save_directory="models/%s/%s" % (model_name, datetime.today()),
@@ -179,41 +165,36 @@ def train_per_ds(task_config, model_config_d):
 if __name__ == "__main__":
     from losses import tversky_loss, dice_loss
     seed_random(100)
-    model_config_dict = {"hidden_dropout_prob": 0.1,
+    model_dict = {"hidden_dropout_prob": 0.1,
                          "emb_path": "models/emb_layer_glove",
                          "num_filters": 3,
                          "padding": 0,
                          "dilation": 1,
-                         "max_length": 1024,
                          "filters": [2, 3, 4],
                          "stride": 1,
-                         "word_max_length": 1024,
-                         "sent_max_length": 50,
-                         "pad_to_length": 1024,
+                         # "hidden_size": 10,
                          "sent_hidden_size": 10,
                          "word_hidden_size": 10,
                          }
 
-    conf_dict = {"filename": "dataset/ag_news.tds",
+    task_dict = {"filename": "dataset/ag_news.wi",
                  "emb_path": "models/emb_layer_glove",
                  "model_name": "han",
                  "batch_size": 100,
-                 "max_length": 1024,
                  "epoch": 1,
                  "loss_func": BCEWithLogitsLoss(),
                  "device": "cpu",
                  "split_strategy": "uniform",
-                 "test": 3,
-                 "hidden_size": 10}
+                 "test": 3,}
 
     task_config = TaskConfig()
 
     model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn', 'han']
-    for model_name in model_names[2:]:
-        conf_dict['model_name'] = model_name
-        task_config.from_dict(conf_dict)
-        print(task_config.model_name)
+    for model_name in model_names[4:]:
+        task_dict['model_name'] = model_name
+        task_config.from_dict(task_dict)
+        print("\n"+model_name)
 
-        res = train_per_ds(task_config, model_config_dict)
+        res = train_per_ds(task_config, model_dict)
 
 

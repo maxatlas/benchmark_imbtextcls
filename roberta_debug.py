@@ -11,7 +11,6 @@ if __name__ == "__main__":
     # torch.manual_seed(66)
     test=3
     filename="dataset/ag_news.tds"
-    max_length=1024
     model_name="gpt"
     batch_size= test if test else 100
     split_strategy="uniform"
@@ -34,9 +33,10 @@ if __name__ == "__main__":
 
     train_set, test_set, val_set = split_tds(filename, split_strategy)
 
-    word_max_length, sent_max_length = max_length, 1
-    if model_name == "han":
+    if filename.endswith(".wi"):
         word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)
+    if filename.endswith(".tds"):
+        word_max_length, sent_max_length = get_max_lengths(train_set.data + test_set.data)[1], 1
 
     train_set.data = train_set.data[:test]
     train_set.labels = train_set.labels[:test]
@@ -47,16 +47,16 @@ if __name__ == "__main__":
 
     print("\nLoading tokenizer ...")
     tokenizer = models[model_name]['tokenizer']
-    tokenizer.model_max_length = max_length
+    tokenizer.model_max_length = word_max_length
 
     print("\nLoading model ...")
     model_config_dict = models[model_name]['config'].to_dict()
     model_config_dict.update(c)
-    model_config_dict['n_positions'] = max_length
+    model_config_dict['n_positions'] = word_max_length
     model_config_dict['label_names'] = val_set.labels_meta.names
     model_config_dict['num_labels'] = val_set.labels_meta.num_classes
     model_config_dict['vocab_size'] = len(tokenizer)
-    model_config_dict['max_position_embeddings'] = max_length
+    model_config_dict['max_position_embeddings'] = word_max_length
     model_config_dict['pad_token_id'] = 0
     model_config_dict['emb_path'] = emb_path
     model_config_dict['pack_to_max'] = 1
@@ -83,15 +83,13 @@ if __name__ == "__main__":
         train_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_fn(b,
                                         model_config.pad_to_length,
-                                        max_length,
-                                        sent_max_length,
+                                        word_max_length,
                                         True))
     test_dl = DataLoader(
         test_set, batch_size=batch_size, shuffle=True,
         collate_fn=lambda b: collate_fn(b,
                                         model_config.pad_to_length,
-                                        max_length,
-                                        sent_max_length,
+                                        word_max_length,
                                         model_config.multi_label))
 
     batch = next(iter(train_dl))

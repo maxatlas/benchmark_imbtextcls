@@ -83,7 +83,7 @@ def build_emb_layer_from_all_datasets(dataset_folder="dataset", cutoff=400_000):
     tkndata = [(key, count_dict[key]) for key in count_dict]
     tkndata = sorted(tkndata, key=lambda x:x[1], reverse=True)[:cutoff]
     tkndata = [key for (key, count) in tkndata]
-    tkndata = ["[PAD]", ["[UNK]"]] + tkndata
+    tkndata = ["[PAD]", "[UNK]"] + tkndata
 
     word2index = {word: i for i, word in enumerate(tkndata)}
 
@@ -149,7 +149,7 @@ def prerun_per_dataset(dconfig, tokenizer, save_folder="dataset", suffix=""):
 
 
 def main(folder):
-    for dmeta in datasets_meta[14:17]:
+    for dmeta in datasets_meta[:0]:
         print("Pretrain %s ..." % dmeta['dname'])
         suffix = ""
         if dmeta['dname'] == ["amazon_reviews_multi", "en"]: suffix = "_%s" % dmeta['label_field']
