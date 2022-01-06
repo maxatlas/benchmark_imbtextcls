@@ -3,9 +3,10 @@ from transformers import (
     GPT2Config, BertConfig, XLNetConfig, RobertaConfig)
 from Classifier import (
     GPT2, BERT, XLNet, Roberta,
-    LSTM, CNN, RCNN
+    LSTM, CNN, RCNN, HAN
 )
 
+import itertools
 
 class ModelConfig():
     def __init__(self, **kwargs):
@@ -24,35 +25,45 @@ class ModelConfig():
 
 
 class faketkn:
-    def __init__(self):
+    def __init__(self, tokenizer=[]):
         self.model_max_length = None
+        self.tokenizer = tokenizer
 
     def __len__(self):
-        return self.model_max_length
+        return len(self.tokenizer)
 
+    def __call__(self, data):
+        # merge sentences for each document.
+        if self.tokenizer: return self.tokenizer(data)
+
+        data = [list(itertools.chain(*doc)) for doc in data]
+        return {'input_ids': data}
+
+
+class hantkn(faketkn):
     def __call__(self, data):
         return {'input_ids': data}
 
 
 models = {
     "gpt": {
-        "tokenizer": GPT2Tokenizer.from_pretrained("gpt2"),
+        "tokenizer": faketkn(GPT2Tokenizer.from_pretrained("gpt2")),
         "model": GPT2,
         "config": GPT2Config()
     },
     "xlnet":{
-        "tokenizer": XLNetTokenizer.from_pretrained("xlnet-large-cased", do_lower_case=True),
+        "tokenizer": faketkn(XLNetTokenizer.from_pretrained("xlnet-large-cased", do_lower_case=True)),
         "config": XLNetConfig(),
         "model": XLNet,
     },
     "bert":{
-        "tokenizer": BertTokenizer.from_pretrained("bert-base-uncased", do_lower_case=True),
+        "tokenizer": faketkn(BertTokenizer.from_pretrained("bert-base-uncased", do_lower_case=True)),
         "config": BertConfig(),
         "model": BERT,
     },
 
     "roberta":{
-        "tokenizer": RobertaTokenizer.from_pretrained("roberta-base", do_lower_case=True),
+        "tokenizer": faketkn(RobertaTokenizer.from_pretrained("roberta-base", do_lower_case=True)),
         "config": RobertaConfig(),
         "model": Roberta,
     },
@@ -72,6 +83,12 @@ models = {
     "rcnn":{
         "tokenizer": faketkn(),
         "model": RCNN,
+        "config": ModelConfig()
+    },
+
+    "han":{
+        "tokenizer": hantkn(),
+        "model": HAN,
         "config": ModelConfig()
     }
 }
