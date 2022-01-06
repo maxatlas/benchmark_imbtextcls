@@ -4,9 +4,8 @@ from transformers import (
 from Classifier import (
     GPT2, BERT, XLNet, Roberta,
     LSTM, CNN, RCNN, HAN,
-    LSTMattn
+    LSTMattn, MLP
 )
-# from HAN_debug import HAN
 import itertools
 
 
@@ -98,5 +97,11 @@ models = {
         "tokenizer": faketkn(),
         "model": LSTMattn,
         "config": ModelConfig()
-    }
+    },
+
+    "mlp": {
+        "tokenizer": faketkn(),
+        "model": MLP,
+        "config": ModelConfig()
+    },
 }
