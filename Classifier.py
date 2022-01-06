@@ -364,7 +364,9 @@ class XLNet(XLNetPreTrainedModel):
 class LSTM(TaskModel):
     def __init__(self, config):
         super(LSTM, self).__init__(config)
-        self.lstm = nn.LSTM(self.emb_d, config.hidden_size, batch_first=True, dropout=config.hidden_dropout_prob)
+        self.lstm = nn.LSTM(self.emb_d, config.hidden_size, batch_first=True,
+                            num_layers=config.num_layers,
+                            dropout=config.hidden_dropout_prob)
         self.cls = nn.Linear(config.hidden_size, config.num_labels)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -393,7 +395,7 @@ class LSTMattn(TaskModel):
         self.batch_size = config.batch_size
         self.hidden_size = config.hidden_size
 
-        self.lstm = nn.LSTM(self.emb_d, self.hidden_size, batch_first=True, )
+        self.lstm = nn.LSTM(self.emb_d, self.hidden_size, batch_first=True, num_layers=config.num_layers, )
         self.cls = nn.Linear(self.hidden_size, self.num_labels)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
 
@@ -432,7 +434,7 @@ class RCNN(TaskModel):
         super(RCNN, self).__init__(config)
         self.hidden_size = config.hidden_size
 
-        self.lstm = nn.LSTM(self.emb_d, self.hidden_size,
+        self.lstm = nn.LSTM(self.emb_d, self.hidden_size, num_layers=config.num_layers,
                             dropout=config.hidden_dropout_prob, bidirectional=True)
         self.W2 = nn.Linear(2 * self.hidden_size + self.emb_d, self.hidden_size)
         self.cls_layer = nn.Linear(self.hidden_size, self.num_labels)
@@ -555,9 +557,9 @@ class HAN(TaskModel):
         self.sent_bias = nn.Parameter(torch.Tensor(1, 2 * config.sent_hidden_size))
         self.sent_context_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 1))
 
-        self.word_gru = nn.GRU(self.emb_d, self.word_hidden_size,
+        self.word_gru = nn.GRU(self.emb_d, self.word_hidden_size, num_layers=config.num_layers,
                                bidirectional=True, dropout=config.hidden_dropout_prob)
-        self.sent_gru = nn.GRU(2 * self.word_hidden_size, self.sent_hidden_size,
+        self.sent_gru = nn.GRU(2 * self.word_hidden_size, self.sent_hidden_size, num_layers=config.num_layers,
                                bidirectional=True, dropout=config.hidden_dropout_prob)
         self.cls = nn.Linear(2 * self.sent_hidden_size, self.num_labels)
 

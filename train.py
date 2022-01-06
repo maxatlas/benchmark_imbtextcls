@@ -211,7 +211,7 @@ if __name__ == "__main__":
     task_config = TaskConfig()
 
     model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn', 'lstmattn', 'han', 'mlp']
-    for model_name in model_names[-6:]:
+    for model_name in model_names[:]:
         if model_names.index(model_name) > 3: task_dict['filename'] = task_dict['filename'].replace(".tds", ".wi")
 
         task_dict['model_name'] = model_name
