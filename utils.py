@@ -5,6 +5,7 @@ import itertools
 import torch
 import math
 
+from copy import deepcopy
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from datasets import load_dataset
@@ -12,6 +13,23 @@ import gensim.downloader as api
 from pathlib import Path
 from os import rename
 from torch.nn.utils.rnn import pad_sequence
+
+
+def get_label_ids(labels, label_names):
+    def convert_labels_str_to_int():
+        label_list = deepcopy(labels)
+        if type(labels[0]) is str:
+            label_list = [label_names.index(l) for l in labels]
+        return label_list
+
+    label_ids = [len(label_names) * [0]] * len(labels)
+    label_list = convert_labels_str_to_int()
+    for i, labels in enumerate(label_list):
+        if type(labels) is int: labels = [labels]
+        print(labels)
+        for label in labels:
+            label_ids[i][label] = 1
+    return label_ids
 
 
 def pad_sent_word(text_ids, word_max_length, sent_max_length):

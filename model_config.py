@@ -3,10 +3,12 @@ from transformers import (
     GPT2Config, BertConfig, XLNetConfig, RobertaConfig)
 from Classifier import (
     GPT2, BERT, XLNet, Roberta,
-    LSTM, CNN, RCNN, HAN
+    LSTM, CNN, RCNN, HAN,
+    LSTMattn
 )
-
+# from HAN_debug import HAN
 import itertools
+
 
 class ModelConfig():
     def __init__(self, **kwargs):
@@ -89,6 +91,12 @@ models = {
     "han":{
         "tokenizer": hantkn(),
         "model": HAN,
+        "config": ModelConfig()
+    },
+
+    "lstmattn":{
+        "tokenizer": faketkn(),
+        "model": LSTMattn,
         "config": ModelConfig()
     }
 }

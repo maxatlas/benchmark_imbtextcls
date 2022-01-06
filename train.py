@@ -1,16 +1,19 @@
 import torch
 import numpy as np
 
-from task_config import TaskConfig
-
 from datetime import datetime
 from tqdm import tqdm
 from TaskDataset import split_tds
 from torch.utils.data import DataLoader
-from model_config import *
+from model_config import models, ModelConfig
 from torch.nn import CrossEntropyLoss, MSELoss, BCEWithLogitsLoss
 
 from utils import get_max_lengths
+
+
+class TaskConfig(ModelConfig):
+    def __init__(self):
+        super(TaskConfig, self).__init__()
 
 
 def seed_random(seed):
@@ -64,7 +67,7 @@ def collate_batch(batch, word_max_length, sent_max_length, multi_label):
 def train_per_ds(task_config, model_config_d):
     test = task_config.test
     model_name = task_config.model_name
-    batch_size = test if test else task_config.batch_size
+    batch_size = test if test < task_config.batch_size else task_config.batch_size
 
     train_set, test_set, val_set = split_tds(task_config.filename, task_config.split_strategy)
 
@@ -136,12 +139,12 @@ def train_per_ds(task_config, model_config_d):
 
     print("\nTraining ...")
     model.train()
-    print(train_set.data)
+    if test: print(train_set.data)
     for _ in range(task_config.epoch):
         for batch in tqdm(train_dl, desc="Iteration"):
             # batch = tuple(t.to("cuda:0") for t in batch)
             text_ids, attention_mask, token_type_ids, label_ids = batch
-            print(text_ids)
+            if test: print(text_ids)
             loss = model.batch_train(text_ids, attention_mask, token_type_ids, label_ids,
                                      loss_func=task_config.loss_func)
             loss.backward()
@@ -177,9 +180,9 @@ if __name__ == "__main__":
                          "word_hidden_size": 10,
                          }
 
-    task_dict = {"filename": "dataset/ag_news.wi",
+    task_dict = {"filename": "dataset/ag_news.tds",
                  "emb_path": "models/emb_layer_glove",
-                 "model_name": "han",
+                 "model_name": "gpt2",
                  "batch_size": 100,
                  "epoch": 1,
                  "loss_func": BCEWithLogitsLoss(),
@@ -189,8 +192,10 @@ if __name__ == "__main__":
 
     task_config = TaskConfig()
 
-    model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn', 'han']
-    for model_name in model_names[4:]:
+    model_names = ['bert', 'roberta', 'gpt', 'xlnet', 'lstm', 'cnn', 'rcnn', 'lstmattn', 'han']
+    for model_name in model_names[:]:
+        if model_names.index(model_name) > 3: task_dict['filename'] = task_dict['filename'].replace(".tds", ".wi")
+
         task_dict['model_name'] = model_name
         task_config.from_dict(task_dict)
         print("\n"+model_name)
