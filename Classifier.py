@@ -4,20 +4,13 @@ import torch.nn as nn
 
 import numpy as np
 from torch.autograd import Variable
-from utils import matrix_mul, element_wise_mul, get_label_ids
+from utils import matrix_mul, element_wise_mul, get_label_ids, metrics_frame
 from torch.nn import functional as F
 from transformers import (GPT2PreTrainedModel, GPT2Model,
                           BertPreTrainedModel, BertModel,
                           XLNetPreTrainedModel, XLNetModel,
                           RobertaPreTrainedModel, RobertaModel,
                           modeling_utils)
-
-from sklearn.metrics import (f1_score,
-                             roc_curve,
-                             auc,
-                             recall_score,
-                             precision_score,
-                             classification_report)
 from gensim.models.keyedvectors import KeyedVectors
 
 """
@@ -67,33 +60,6 @@ def build_emb_layer(tknwords:set, kv: KeyedVectors, trainable=1):
     return emb_layer, unfound_words
 
 
-def metrics_frame(preds, labels, label_names):
-    recall_micro = recall_score(labels, preds, average="micro")
-    recall_macro = recall_score(labels, preds, average="macro")
-    precision_micro = precision_score(labels, preds, average="micro")
-    precision_macro = precision_score(labels, preds, average="macro")
-    f1_micro = f1_score(labels, preds, average="micro")
-    f1_macro = f1_score(labels, preds, average="macro")
-    fpr, tpr, thresholds = roc_curve(labels, preds, pos_label=1)
-    auc_res = auc(fpr, tpr)
-    cr = classification_report(labels, preds,)
-                               # labels=list(range(len(label_names))), target_names=label_names)
-
-    model_metrics = {
-        "Precision, Micro": precision_micro,
-        "Precision, Macro": precision_macro,
-        "Recall, Micro": recall_micro,
-        "Recall, Macro": recall_macro,
-        "F1 score, Micro": f1_micro,
-        "F1 score, Macro": f1_macro,
-        "ROC curve": (fpr, tpr, thresholds),
-        "AUC": auc_res,
-        "Classification report": cr,
-    }
-
-    return model_metrics
-
-
 class TaskModel(nn.Module):
     def __init__(self, config):
         super(TaskModel, self).__init__()
@@ -103,6 +69,10 @@ class TaskModel(nn.Module):
 
         self.emb = nn.Embedding(vocab_size, self.emb_d)
         self.emb.load_state_dict(emb_weights)
+
+        self.num_labels = config.num_labels
+        self.device = config.device
+        self.num_layers = config.num_layers
 
     def freeze_emb(self):
         self.emb.weight.requires_grad = False
@@ -118,7 +88,7 @@ class TaskModel(nn.Module):
             preds = self._batch_eval(input_ids, a, b, labels, label_names)
             if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
 
-        return metrics_frame(preds, labels, label_names)
+        return preds
 
 
 class GPT2(GPT2PreTrainedModel):
@@ -174,8 +144,7 @@ class GPT2(GPT2PreTrainedModel):
         with torch.no_grad():
             _, preds = self.forward(input_ids)
             if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
-        res = metrics_frame(preds, labels, label_names)
-        return res
+        return preds
 
 
 class RobertaClassificationHead(nn.Module):
@@ -254,8 +223,8 @@ class Roberta(RobertaPreTrainedModel):
         with torch.no_grad():
             _, preds = self.forward(input_ids, attention_mask, token_type_ids)
             if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
-        res = metrics_frame(preds, labels, label_names)
-        return res
+
+        return preds
 
 
 class BERT(BertPreTrainedModel):
@@ -325,8 +294,7 @@ class BERT(BertPreTrainedModel):
         with torch.no_grad():
             preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
             if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
-        res = metrics_frame(preds, labels, label_names)
-        return res
+        return preds
 
 
 class XLNet(XLNetPreTrainedModel):
@@ -390,8 +358,7 @@ class XLNet(XLNetPreTrainedModel):
                                     token_type_ids=token_type_ids,
                                     **kwargs)
             if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
-        res = metrics_frame(preds, labels, label_names)
-        return res
+        return preds
 
 
 class LSTM(TaskModel):
@@ -425,7 +392,6 @@ class LSTMattn(TaskModel):
         super(LSTMattn, self).__init__(config)
         self.batch_size = config.batch_size
         self.hidden_size = config.hidden_size
-        self.num_labels = config.num_labels
 
         self.lstm = nn.LSTM(self.emb_d, self.hidden_size, batch_first=True, )
         self.cls = nn.Linear(self.hidden_size, self.num_labels)
@@ -435,7 +401,7 @@ class LSTMattn(TaskModel):
         f, (hx, _) = lstm_output
         attn_weights = torch.bmm(f, hx.permute(1, 2, 0))
         soft_attn_weights = F.softmax(attn_weights, 1)
-        weighted_f = torch.bmm(f.transpose(1, 2), soft_attn_weights).squeeze()
+        weighted_f = torch.bmm(f.transpose(1, 2), soft_attn_weights).squeeze(2)
 
         return weighted_f
 
@@ -445,7 +411,7 @@ class LSTMattn(TaskModel):
         out = self.pay_attn(out)
 
         logits = self.cls(out)
-        preds = torch.argmax(logits, dim=1)
+        preds = torch.argmax(logits, dim=1) # TODO dim index out of range??
 
         return logits, preds
 
@@ -464,8 +430,6 @@ class LSTMattn(TaskModel):
 class RCNN(TaskModel):
     def __init__(self, config):
         super(RCNN, self).__init__(config)
-
-        self.num_labels = config.num_labels
         self.hidden_size = config.hidden_size
 
         self.lstm = nn.LSTM(self.emb_d, self.hidden_size,
@@ -499,8 +463,7 @@ class RCNN(TaskModel):
     def batch_eval(self, input_ids, a, b, labels, label_names):
         _, preds = self.forward(input_ids)
 
-        res = metrics_frame(preds, labels, label_names)
-        return res
+        return preds
 
 
 class CNN(TaskModel):
@@ -511,7 +474,6 @@ class CNN(TaskModel):
         self.padding = config.padding
         self.dilation = config.dilation
         self.max_length = config.n_positions
-        self.num_labels = config.num_labels
         self.stride = config.stride
 
         self.filters = config.filters
@@ -523,6 +485,7 @@ class CNN(TaskModel):
 
     def _create_conv_layers(self, kernel_size):
         conv_layer = nn.Conv1d(self.emb_d, self.num_filters, kernel_size, self.stride)
+        conv_layer.to(self.device)
         return conv_layer
 
     def _create_pool_layer(self, kernel_size):
@@ -571,8 +534,7 @@ class CNN(TaskModel):
     def batch_eval(self, input_ids, a, b, labels, label_names):
         _, preds = self.forward(input_ids)
 
-        res = metrics_frame(preds, labels, label_names)
-        return res
+        return preds
 
 
 class HAN(TaskModel):
@@ -613,11 +575,8 @@ class HAN(TaskModel):
             batch_size = last_batch_size
         else:
             batch_size = self.batch_size
-        self.word_hidden_state = torch.zeros(2, batch_size, self.word_hidden_size)
-        self.sent_hidden_state = torch.zeros(2, batch_size, self.sent_hidden_size)
-        # if torch.cuda.is_available():
-        #     self.word_hidden_state = self.word_hidden_state.cuda()
-        #     self.sent_hidden_state = self.sent_hidden_state.cuda()
+        self.word_hidden_state = torch.zeros(2, batch_size, self.word_hidden_size).to(self.device)
+        self.sent_hidden_state = torch.zeros(2, batch_size, self.sent_hidden_size).to(self.device)
 
     def forward(self, input_ids):
         sent_list = []
@@ -652,8 +611,6 @@ class HAN(TaskModel):
 
     def batch_train(self, input_ids, attention_mask, token_type_ids, label_ids, loss_func):
         logits, _ = self.forward(input_ids)
-        print(logits, label_ids)
-        print(logits.shape, label_ids.shape)
         loss = loss_func(logits, label_ids)
 
         return loss
@@ -661,5 +618,42 @@ class HAN(TaskModel):
     def batch_eval(self, input_ids, a, b, labels, label_names):
         with torch.no_grad():
             _, preds = self.forward(input_ids)
-        return metrics_frame(preds, labels, label_names)
+        return preds
 
+
+class MLP(TaskModel):
+    def __init__(self, config):
+        super(MLP, self).__init__(config)
+        self.word_max_length = config.n_positions
+        self.hidden_size = config.hidden_size
+
+        self.mlp0 = nn.Linear(self.emb_d, 1)
+        self.mlp1 = nn.Linear(self.word_max_length, self.hidden_size)
+        self.mlps = [nn.Linear(self.hidden_size, self.hidden_size, device=self.device)
+                     for _ in range(self.num_layers - 1)]
+        self.cls = nn.Linear(self.hidden_size, self.num_labels)
+        # self.layernorm = nn.LayerNorm()
+        # TODO: Batchrnorm? layernorm? dropout?
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    def forward(self, input_ids):
+        embeds = self.emb(input_ids)
+        out = self.mlp0(embeds).squeeze(2)
+        out = self.mlp1(out)
+        for mlp in self.mlps:
+            out = mlp(out)
+        logits = self.cls(out)
+        preds = torch.argmax(logits, axis=1)
+
+        return logits, preds
+
+    def batch_train(self, input_ids, attention_mask, token_type_ids, label_ids, loss_func):
+        logits, _ = self.forward(input_ids)
+        loss = loss_func(logits, label_ids)
+
+        return loss
+
+    def batch_eval(self, input_ids, a, b, labels, label_names):
+        with torch.no_grad():
+            _, preds = self.forward(input_ids)
+        return preds
