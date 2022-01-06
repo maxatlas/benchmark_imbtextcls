@@ -4,7 +4,7 @@ import torch.nn as nn
 
 import numpy as np
 from torch.autograd import Variable
-from utils import matrix_mul, element_wise_mul
+from utils import matrix_mul, element_wise_mul, get_label_ids
 from torch.nn import functional as F
 from transformers import (GPT2PreTrainedModel, GPT2Model,
                           BertPreTrainedModel, BertModel,
@@ -110,6 +110,16 @@ class TaskModel(nn.Module):
     def unfreeze_emb(self):
         self.emb.weight.requires_grad = True
 
+    def _batch_eval(self, a, b, c, d, e):
+        return
+
+    def batch_eval(self, input_ids, a, b, labels, label_names):
+        with torch.no_grad():
+            preds = self._batch_eval(input_ids, a, b, labels, label_names)
+            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
+
+        return metrics_frame(preds, labels, label_names)
+
 
 class GPT2(GPT2PreTrainedModel):
     def __init__(self, config):
@@ -163,7 +173,9 @@ class GPT2(GPT2PreTrainedModel):
     def batch_eval(self, input_ids, a, b, labels, label_names):
         with torch.no_grad():
             _, preds = self.forward(input_ids)
-        return metrics_frame(preds, labels, label_names)
+            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
+        res = metrics_frame(preds, labels, label_names)
+        return res
 
 
 class RobertaClassificationHead(nn.Module):
@@ -241,7 +253,9 @@ class Roberta(RobertaPreTrainedModel):
     def batch_eval(self, input_ids, attention_mask, token_type_ids, labels, label_names):
         with torch.no_grad():
             _, preds = self.forward(input_ids, attention_mask, token_type_ids)
-        return metrics_frame(preds, labels, label_names)
+            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
+        res = metrics_frame(preds, labels, label_names)
+        return res
 
 
 class BERT(BertPreTrainedModel):
@@ -308,7 +322,9 @@ class BERT(BertPreTrainedModel):
                    token_type_ids,
                    labels,
                    label_names):
-        preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        with torch.no_grad():
+            preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
         res = metrics_frame(preds, labels, label_names)
         return res
 
@@ -369,9 +385,11 @@ class XLNet(XLNetPreTrainedModel):
                    labels,
                    label_names,
                    **kwargs):
-        preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask,
-                                token_type_ids=token_type_ids,
-                                **kwargs)
+        with torch.no_grad():
+            preds, _ = self.forward(input_ids=input_ids, attention_mask=attention_mask,
+                                    token_type_ids=token_type_ids,
+                                    **kwargs)
+            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
         res = metrics_frame(preds, labels, label_names)
         return res
 
@@ -397,11 +415,50 @@ class LSTM(TaskModel):
         loss = loss_func(logits, label_ids)
         return loss
 
-    def batch_eval(self, input_ids, a,b, labels, label_names):
+    def _batch_eval(self, input_ids, a,b, labels, label_names):
+        _, preds = self.forward(input_ids)
+        return preds
+
+
+class LSTMattn(TaskModel):
+    def __init__(self, config):
+        super(LSTMattn, self).__init__(config)
+        self.batch_size = config.batch_size
+        self.hidden_size = config.hidden_size
+        self.num_labels = config.num_labels
+
+        self.lstm = nn.LSTM(self.emb_d, self.hidden_size, batch_first=True, )
+        self.cls = nn.Linear(self.hidden_size, self.num_labels)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    def pay_attn(self, lstm_output):
+        f, (hx, _) = lstm_output
+        attn_weights = torch.bmm(f, hx.permute(1, 2, 0))
+        soft_attn_weights = F.softmax(attn_weights, 1)
+        weighted_f = torch.bmm(f.transpose(1, 2), soft_attn_weights).squeeze()
+
+        return weighted_f
+
+    def forward(self, input_ids):
+        embeds = self.emb(input_ids)
+        out = self.lstm(embeds)
+        out = self.pay_attn(out)
+
+        logits = self.cls(out)
+        preds = torch.argmax(logits, dim=1)
+
+        return logits, preds
+
+    def batch_train(self, input_ids, a, b, label_ids, loss_func):
+        logits, _ = self.forward(input_ids)
+
+        loss = loss_func(logits, label_ids)
+        return loss
+
+    def _batch_eval(self, input_ids, a, b, labels, label_names):
         _, preds = self.forward(input_ids)
 
-        res = metrics_frame(preds, labels, label_names)
-        return res
+        return preds
 
 
 class RCNN(TaskModel):
@@ -565,9 +622,9 @@ class HAN(TaskModel):
     def forward(self, input_ids):
         sent_list = []
 
-        input_ids = input_ids.permute(1, 0, 2)
+        input_ids = input_ids.permute(1, 0, 2) # (max_sent_length, batch_size, max_word_length)
         for sent in input_ids:
-            sent = sent.permute(1, 0)
+            sent = sent.permute(1, 0) # (max_word_length, batch) nth word from each batch
             embeds = self.emb(sent)
             f_output, h_output = self.word_gru(embeds.float(), self.word_hidden_state)
             output = matrix_mul(f_output, self.word_weight, self.word_bias)
