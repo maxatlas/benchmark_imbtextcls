@@ -1,5 +1,5 @@
 """
-
+Given config -> TaskDataset for train/test/val
 
 """
 from datasets.features.features import ClassLabel
@@ -25,6 +25,7 @@ class TaskDataset:
         row = self.data.iloc[i]
 
         label = row[self.info.label_field]
+        if type(label) is float: label = int(label > 0.5)
         data = row.loc[self.info.text_fields]
         data = "\n".join(data)
 
@@ -75,20 +76,19 @@ def main(config: DataConfig):
     # Create ClassLabel object for the label field if it's not of the type.
     # Replace label in df from string to int.
     if type(label_features) is not ClassLabel:
+        if "float" in label_features.dtype:
+            df.loc[(df[config.label_field] >= 0.5), 'label'] = 1
+            df.loc[(df[config.label_field] < 0.5), 'label'] = 0
+            df[config.label_field].astype("int32")
+
         label_features = ClassLabel(names=list(set(df[config.label_field].values)))
         replace_dict = {name: label_features.names.index(name) for name in label_features.names}
         df = df.replace(replace_dict)
 
+
     train, test, val = split_df(df, label_features, config)
-    # train, test, val = TaskDataset(train, label_features, config), \
-    #                    TaskDataset(test, label_features, config), \
-    #                    TaskDataset(val, label_features, config),
+    train, test, val = TaskDataset(train, label_features, config), \
+                       TaskDataset(test, label_features, config), \
+                       TaskDataset(val, label_features, config),
 
     return train, test, val
-
-
-if __name__ == "__main__":
-    from Config import DataConfig
-    from vars import datasets_meta
-    config = DataConfig(*datasets_meta[-1].values())
-    a, b, c = main(config)

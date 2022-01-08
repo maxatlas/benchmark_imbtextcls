@@ -11,7 +11,7 @@ class DataConfig:
                  sample_ratio_to_imb: float,
                  split_ratio="0.75/0.20/0.05",
                  train_set_transform=None,
-                 threshold=0.6, tolerance=0.3,):
+                 threshold=0.6, tolerance=0.3, ):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
         assert (type(split_ratio) is str and all([float(e) for e in split_ratio.split("/")])), \
@@ -54,17 +54,17 @@ class ModelConfig:
     def __init__(self, model_name,
                  word_max_length,
                  n_labels,
-                 tokenizer_name=None,
-                 emb_path=None,
+                 hidden_size,
+                 tokenizer_name,
                  emb_layer_path=None,
-                 hidden_size=None,
                  n_layers=None,
                  activation_function=None,
                  dropout=0.1,
                  padding=0,
                  dilation=1,
                  stride=1,
-                 filters=(2, 3, 4, 5)):
+                 filters=(2, 3, 4, 5),
+                 pretrained_model_name=""):
 
         self.model_name = model_name.lower()
         assert self.model_name in ["bert", "xlnet", "roberta", "gpt2", "lstm",
@@ -75,47 +75,74 @@ class ModelConfig:
             "\n\t\tlstmattn (LSTM with attention) " \
             "\n\t\tCNN\n\t\tRCNN\n\t\tHAN\n\t\tMLP"
 
+        assert hidden_size, "%s model requires hidden_size attribute." % model_name
+
         self.tokenizer = None
-        self.n_labels = n_labels
-
         self.tokenizer_name = tokenizer_name
-        self.emb_path = emb_path
 
-        if model_name == "bert" or "roberta":
+        self.cls_hidden_size = hidden_size
+
+        self.emb_layer_path = emb_layer_path
+
+        self.dropout = dropout
+
+        if model_name == "bert" or model_name == "roberta":
             self.vocab_size = 30_522 if model_name == "bert" else 50_265
             self.max_position_embeddings = word_max_length
+            self.hidden_dropout_prob = dropout
+            self.classifier_dropout = dropout
+            self.attention_probs_dropout_prob = dropout
+            self.num_labels = n_labels
 
-        if model_name == "gpt2":
+            if model_name == "bert":
+                self.pretrained_model_name = "bert-base-uncased" if \
+                    not pretrained_model_name else pretrained_model_name
+                self.num_labels = n_labels
+            elif model_name == "roberta":
+                self.pretrained_model_name = "roberta-base" \
+                    if not pretrained_model_name else pretrained_model_name
+                self.num_labels = n_labels
+
+        elif model_name == "gpt2":
             self.vocab_size = 50_257
             self.n_positions = word_max_length
 
-        if model_name == "xlnet":
+            self.resid_pdrop = dropout
+            self.embd_pdrop = dropout
+            self.attn_pdrop = dropout
+
+            self.pretrained_model_name = "gpt2" \
+                if not pretrained_model_name else pretrained_model_name
+
+        elif model_name == "xlnet":
             self.vocab_size = 32_000
+
+            self.pretrained_model_name = "xlnet-large-cased" \
+                if not pretrained_model_name else pretrained_model_name
 
         else:
             assert tokenizer_name in ["spacy", "nltk", "bert", "gpt2"], \
                 "%s model requires a tokenizer (spacy/nltk)." % model_name
-            assert emb_path and tokenizer_name not in ["bert", "gpt2"], \
-                "%s model requires an embedder (glove/fasttext/word2vec)."
             assert emb_layer_path, "%s model requires embedding layers."
 
-            self.emb_d = 300
-            self.dropout = dropout
+            self.n_labels = n_labels
+            self.n_layers = n_layers
             self.word_max_length = word_max_length
             self.activation = activation_function
-            self.emb_layer_path = emb_layer_path
 
             if tokenizer_name in ["bert", "gpt2"]:
                 self.emb_d = 768
+                if tokenizer_name == "bert": self.pretrained_model_name = "bert-base-uncased" if \
+                    not pretrained_model_name else pretrained_model_name
+                if tokenizer_name == "gpt2": self.pretrained_model_name = "gpt2" if \
+                    not pretrained_model_name else pretrained_model_name
 
             if model_name in ["lstm", "lstmattn", "rcnn", "mlp", "han"]:
-                assert hidden_size, "%s model requires hidden_size attribute." % model_name
-                self.hidden_size = hidden_size
                 self.n_layers = n_layers if n_layers else 1
 
             elif model_name is "cnn":
                 self.padding = padding
-                self.dilution = dilation
+                self.dilation = dilation
                 self.stride = stride
                 self.filters = filters
 
@@ -123,16 +150,16 @@ class ModelConfig:
         config = self
         if self.model_name == "bert":
             from transformers import BertConfig
-            config = BertConfig.from_pretrained("bert-base-uncased").from_dict(self.__dict__)
+            config = BertConfig.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
         elif self.model_name == "roberta":
             from transformers import RobertaConfig
-            config = RobertaConfig.from_pretrained("roberta-base").from_dict(self.__dict__)
+            config = RobertaConfig.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
         elif self.model_name == "xlnet":
             from transformers import XLNetConfig
-            config = XLNetConfig.from_pretrained("xlnet-large-cased").from_dict(self.__dict__)
+            config = XLNetConfig.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
         elif self.model_name == "gpt2":
             from transformers import GPT2Config
-            config = GPT2Config.from_pretrained("gpt2").from_dict(self.__dict__)
+            config = GPT2Config.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
 
         return config
 
@@ -158,7 +185,6 @@ class TaskConfig:
                  test: int = 0,
                  epoch: int = 1,
                  ):
-
         self.batch_size = batch_size
         self.loss_func = loss_func
         self.device = device
@@ -167,12 +193,12 @@ class TaskConfig:
 
         self.model_config_dict = model_config_dict
         self.data_config_dict = data_config_dict
-        
-        self.model_config = None 
+
+        self.model_config = None
         self.data_config = None
 
         self.__post_init__()
-        
+
     def __post_init__(self):
         self.model_config = ModelConfig(**self.model_config_dict)()
         self.data_config = DataConfig(**self.data_config_dict)
@@ -191,6 +217,4 @@ class TaskConfig:
 
 
 if __name__ == "__main__":
-    mc = {"model_name": "gpt", "max_word_length": 1024, "n_labels": 2}
-    dc = {}
-    tc = TaskConfig(mc, dc, 3, print)
+    mc = {"model_name": "roberta", "max_word_length": 1024, "n_labels": 2}
