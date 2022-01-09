@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from utils import get_label_ids, pad_seq_to_length
+from model_utils import pad_seq, batch_train, batch_eval
 from transformers import (BertPreTrainedModel,
                           BertModel)
 
@@ -22,43 +22,32 @@ class Model(BertPreTrainedModel):
         # Initialize weights and apply final processing
         self.init_weights()
 
-    def forward(self, texts, max_length=None):
-        max_length = self.config.n_positions if not max_length else max_length
+    def forward(self, texts, **kwargs):
+        max_length = self.config.max_position_embeddings
 
-        input_ids, attention_mask, token_type_ids = self.tokenizer(texts).values()
-        input_ids = pad_seq_to_length(input_ids, max_length)
-        attention_mask = pad_seq_to_length(attention_mask, max_length)
-        input_ids, attention_mask = torch.tensor(input_ids), torch.tensor(attention_mask)
+        input_ids, token_type_ids, attention_mask = self.tokenizer.core(texts).values()
+
+        input_ids = pad_seq(input_ids, max_length)
+        attention_mask = pad_seq(attention_mask, max_length)
+        token_type_ids = pad_seq(token_type_ids, max_length)
 
         outputs = self.bert(
             input_ids,
             attention_mask=attention_mask,
             token_type_ids=token_type_ids,
+            **kwargs
         )
 
         pooled_output = outputs[1]
 
         pooled_output = self.dropout(pooled_output)
-        logits = self.classifierr(pooled_output)
+        logits = self.classifier(pooled_output)
         preds = torch.argmax(logits, dim=1)
 
-        return preds, logits
+        return logits, preds
 
-    def batch_train(self,
-                    texts,
-                    label_ids,
-                    loss_func):
-        _, logits = self.forward(texts)
-        loss = loss_func(logits, label_ids)
+    def batch_train(self, texts, labels, label_names, loss_func):
+        return batch_train(self, texts, labels, label_names, loss_func)
 
-        return loss
-
-    def batch_eval(self, input_ids,
-                   attention_mask,
-                   token_type_ids,
-                   labels,
-                   label_names):
-        with torch.no_grad():
-            preds, _ = self.forward(texts)
-            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
-        return preds
+    def batch_eval(self, texts, labels, label_names):
+        return batch_eval(self, texts, labels, label_names)

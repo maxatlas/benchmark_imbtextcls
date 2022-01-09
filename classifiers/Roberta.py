@@ -1,30 +1,11 @@
 import torch
 import torch.nn as nn
 
-from utils import get_label_ids
-from transformers import (RobertaPreTrainedModel, RobertaModel)
-
-
-class RobertaClassificationHead(nn.Module):
-    """Head for sentence-level classification tasks."""
-
-    def __init__(self, config):
-        super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
-        classifier_dropout = (
-            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
-        )
-        self.dropout = nn.Dropout(classifier_dropout)
-        self.out_proj = nn.Linear(config.hidden_size, config.num_labels)
-
-    def forward(self, features, **kwargs):
-        x = features[:, 0, :]  # take <s> token (equiv. to [CLS])
-        x = self.dropout(x)
-        x = self.dense(x)
-        x = torch.tanh(x)
-        x = self.dropout(x)
-        x = self.out_proj(x)
-        return x
+from model_utils import (batch_eval,
+                         batch_train,
+                         pad_seq)
+from transformers import (RobertaPreTrainedModel,
+                          RobertaModel)
 
 
 class Model(RobertaPreTrainedModel):
@@ -34,52 +15,46 @@ class Model(RobertaPreTrainedModel):
         super().__init__(config)
         self.num_labels = config.num_labels
         self.config = config
-
         self.roberta = RobertaModel(config, add_pooling_layer=False)
-        self.classifier = RobertaClassificationHead(config)
+        classifier_dropout = (
+            config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
+        )
+        self.dropout = nn.Dropout(classifier_dropout)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
 
-        # Initialize weights and apply final processing
         self.init_weights()
 
     def forward(
             self,
-            input_ids=None,
-            attention_mask=None,
-            token_type_ids=None,
-            position_ids=None,
-            head_mask=None,
-            inputs_embeds=None,
-            output_attentions=None,
-            output_hidden_states=None,
+            texts,
             return_dict=None,
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+        max_length = self.config.max_position_embeddings
 
+        return_dict = return_dict if return_dict is not None else self.config.use_return_dict
+
+        input_ids, attention_mask = self.tokenizer.core(texts).values()
+        input_ids = pad_seq(input_ids, max_length)
+        attention_mask = pad_seq(attention_mask, max_length)
+
+        input_ids, attention_mask = torch.tensor(input_ids),\
+                                    torch.tensor(attention_mask)
         outputs = self.roberta(
             input_ids,
             attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            head_mask=head_mask,
-            inputs_embeds=inputs_embeds,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
-        logits = self.classifier(outputs[0])
+        outputs = outputs[0][:, -1, :]  # take <s> token (equiv. to [CLS])
+        outputs = self.dropout(outputs)
+
+        logits = self.classifier(outputs)
         preds = torch.argmax(logits, dim=1)
 
         return logits, preds
 
-    def batch_train(self, input_ids, attention_mask, token_type_ids, label_ids, loss_func):
-        logits, _ = self.forward(input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
-        loss = loss_func(logits, label_ids)
+    def batch_train(self, texts, labels, label_names, loss_func):
+        return batch_train(self, texts, labels, label_names, loss_func)
 
-        return loss
-
-    def batch_eval(self, input_ids, attention_mask, token_type_ids, labels, label_names):
-        with torch.no_grad():
-            _, preds = self.forward(input_ids, attention_mask, token_type_ids)
-            if type(labels[0]) is list: preds = get_label_ids(preds, label_names)
-
-        return preds
+    def batch_eval(self, texts, labels, label_names):
+        return batch_eval(self, texts, labels, label_names)

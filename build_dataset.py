@@ -79,12 +79,11 @@ def main(config: DataConfig):
         if "float" in label_features.dtype:
             df.loc[(df[config.label_field] >= 0.5), 'label'] = 1
             df.loc[(df[config.label_field] < 0.5), 'label'] = 0
-            df[config.label_field].astype("int32")
+            df['label'] = df[config.label_field].astype("int32")
 
         label_features = ClassLabel(names=list(set(df[config.label_field].values)))
         replace_dict = {name: label_features.names.index(name) for name in label_features.names}
         df = df.replace(replace_dict)
-
 
     train, test, val = split_df(df, label_features, config)
     train, test, val = TaskDataset(train, label_features, config), \

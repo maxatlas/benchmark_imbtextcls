@@ -52,21 +52,26 @@ class DataConfig:
 
 class ModelConfig:
     def __init__(self, model_name,
-                 word_max_length,
                  n_labels,
-                 hidden_size,
                  tokenizer_name,
-                 emb_layer_path=None,
-                 n_layers=None,
-                 activation_function=None,
+                 word_max_length=None,
+                 hidden_size=100,
+                 word_index_path="parameters/word_index",
+                 emb_path=None,
+                 n_layers=1,
+                 activation_function="gelu",
                  dropout=0.1,
                  padding=0,
                  dilation=1,
                  stride=1,
                  filters=(2, 3, 4, 5),
-                 pretrained_model_name=""):
+                 pretrained_model_name="",
+                 pretrained_tokenizer_name="",
+                 ):
 
         self.model_name = model_name.lower()
+
+        assert n_labels, "Must specify number of labels (n_labels)."
         assert self.model_name in ["bert", "xlnet", "roberta", "gpt2", "lstm",
                                    "lstmattn", "cnn", "rcnn", "han", "mlp"], \
             "Model name should be any of the following:" \
@@ -74,77 +79,78 @@ class ModelConfig:
             "\n\t\tRoBERTa\n\t\tGPT2\n\t\tLSTM" \
             "\n\t\tlstmattn (LSTM with attention) " \
             "\n\t\tCNN\n\t\tRCNN\n\t\tHAN\n\t\tMLP"
+        if pretrained_tokenizer_name:
+            assert tokenizer_name in pretrained_tokenizer_name,\
+                "Unmatched tokenizer with pretrained tokenizer name or with embedding layer path."
+        if pretrained_model_name:
+            assert model_name in pretrained_model_name, "Unmatched model and pretrained."
 
-        assert hidden_size, "%s model requires hidden_size attribute." % model_name
+        if not pretrained_model_name:
+            assert word_max_length and emb_path and tokenizer_name and word_index_path, \
+                "Customized %s model requires hidden_size attribute." % model_name
+
+        self.num_labels = n_labels
+        self.pretrained_model_name = pretrained_model_name
 
         self.tokenizer = None
         self.tokenizer_name = tokenizer_name
-
-        self.cls_hidden_size = hidden_size
-
-        self.emb_layer_path = emb_layer_path
-
-        self.dropout = dropout
+        self.word_max_length = word_max_length
+        self.emb_path = emb_path
 
         if model_name == "bert" or model_name == "roberta":
-            self.vocab_size = 30_522 if model_name == "bert" else 50_265
             self.max_position_embeddings = word_max_length
             self.hidden_dropout_prob = dropout
             self.classifier_dropout = dropout
             self.attention_probs_dropout_prob = dropout
-            self.num_labels = n_labels
 
-            if model_name == "bert":
-                self.pretrained_model_name = "bert-base-uncased" if \
-                    not pretrained_model_name else pretrained_model_name
-                self.num_labels = n_labels
-            elif model_name == "roberta":
-                self.pretrained_model_name = "roberta-base" \
-                    if not pretrained_model_name else pretrained_model_name
-                self.num_labels = n_labels
+            if model_name == "roberta":
+                self.max_position_embeddings = 2 if not word_max_length else word_max_length
+                self.vocab_size = 2 if not word_max_length else word_max_length
 
         elif model_name == "gpt2":
-            self.vocab_size = 50_257
             self.n_positions = word_max_length
 
             self.resid_pdrop = dropout
             self.embd_pdrop = dropout
             self.attn_pdrop = dropout
 
-            self.pretrained_model_name = "gpt2" \
-                if not pretrained_model_name else pretrained_model_name
-
         elif model_name == "xlnet":
-            self.vocab_size = 32_000
-
-            self.pretrained_model_name = "xlnet-large-cased" \
-                if not pretrained_model_name else pretrained_model_name
+            self.ff_activation = activation_function
 
         else:
-            assert tokenizer_name in ["spacy", "nltk", "bert", "gpt2"], \
-                "%s model requires a tokenizer (spacy/nltk)." % model_name
-            assert emb_layer_path, "%s model requires embedding layers."
+            assert tokenizer_name in ["spacy", "spacy-sent", "nltk", "nltk-sent", "bert", "gpt2", "roberta", "xlnet"], \
+                "%s model requires a tokenizer (spacy/nltk/bert/gpt2/roberta/xlnet)." % model_name
+            assert emb_path, "%s model requires embedding layers."
 
-            self.n_labels = n_labels
-            self.n_layers = n_layers
-            self.word_max_length = word_max_length
+            self.cls_hidden_size = hidden_size
+            self.emb_path = emb_path
+            self.word_index_path = word_index_path
+            self.pretrained_tokenizer_name = pretrained_tokenizer_name
+
+            self.dropout = dropout
+            self.num_layers = n_layers
             self.activation = activation_function
+
+            if pretrained_tokenizer_name: self.emb_path = "parameters/emb_layer_%s" % tokenizer_name
 
             if tokenizer_name in ["bert", "gpt2"]:
                 self.emb_d = 768
-                if tokenizer_name == "bert": self.pretrained_model_name = "bert-base-uncased" if \
-                    not pretrained_model_name else pretrained_model_name
-                if tokenizer_name == "gpt2": self.pretrained_model_name = "gpt2" if \
-                    not pretrained_model_name else pretrained_model_name
+                if tokenizer_name == "bert":
+                    self.pretrained_model_name = "bert-base-uncased" if \
+                        not pretrained_model_name else pretrained_model_name
+                if tokenizer_name == "gpt2":
+                    self.pretrained_model_name = "gpt2" if \
+                        not pretrained_model_name else pretrained_model_name
 
-            if model_name in ["lstm", "lstmattn", "rcnn", "mlp", "han"]:
-                self.n_layers = n_layers if n_layers else 1
-
-            elif model_name is "cnn":
+            elif model_name == "cnn":
                 self.padding = padding
                 self.dilation = dilation
                 self.stride = stride
                 self.filters = filters
+
+            elif model_name == "han":
+                self.word_hidden_size = hidden_size
+                self.sent_hidden_size = hidden_size
 
     def __call__(self):
         config = self

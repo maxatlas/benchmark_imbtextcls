@@ -3,16 +3,13 @@ import datasets
 import itertools
 
 import torch
-import math
 
-from copy import deepcopy
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from datasets import load_dataset
 import gensim.downloader as api
 from pathlib import Path
 from os import rename
-import torch.nn as nn
 
 
 from sklearn.metrics import (f1_score,
@@ -21,20 +18,6 @@ from sklearn.metrics import (f1_score,
                              recall_score,
                              precision_score,
                              classification_report)
-
-
-def load_transformer_emb(model, i=0):
-    weight = list(model.parameters())[i]
-    emb = nn.Embedding(*weight.shape)
-    emb.load_state_dict({"weight":weight})
-
-    return emb
-
-
-def save_transformer_emb(model, model_name):
-    i = 1 if model_name == "xlnet" else 0
-    emb = load_transformer_emb(model, i)
-    torch.save(emb, "parameters/emb_layer_%s" % model_name)
 
 
 def metrics_frame(preds, labels, label_names):
@@ -64,28 +47,6 @@ def metrics_frame(preds, labels, label_names):
     return model_metrics
 
 
-def get_label_ids(labels, label_names):
-    assert type(labels) is int or (type(labels) is list and type(labels[0]) is int), \
-        "Format of the label should be either int or list(int). " \
-        "Please transform labels at build_dataset stage."
-
-    label_ids = [len(label_names) * [0]] * len(labels)
-    label_list = deepcopy(labels)
-    for i, labels in enumerate(label_list):
-        if type(labels) is int: labels = [labels]
-        for label in labels:
-            label_ids[i][label] = 1
-    label_ids = torch.tensor(label_ids)
-    return label_ids.float()
-
-
-def pad_seq_to_length(text_ids, word_max_length):
-    text_ids = [(doc + [0] * (word_max_length - len(doc)))
-                [:word_max_length] for doc in text_ids]  # pad words
-
-    return text_ids
-
-
 def matrix_mul(input, weight, bias=False):
     feature_list = []
     for feature in input:
@@ -110,7 +71,7 @@ def element_wise_mul(input1, input2):
     return torch.sum(output, 0).unsqueeze(0)
 
 
-def preprocess_text(text:str):
+def preprocess_text(text: str):
     text = text.lower()
     text = text.replace("//", " ")
     text = text.replace("\\", " ")
@@ -121,9 +82,9 @@ def preprocess_text(text:str):
 
 
 def preprocess_texts(texts:list):
-    text = "[SEP]".join(texts).lower()
+    text = "[sep]".join(texts).lower()
     text = preprocess_text(text)
-    texts = text.split("[SEP]")
+    texts = text.split("[sep]")
     return texts
 
 
@@ -270,15 +231,20 @@ def get_max_lengths(input_ids):
     sent_length_list = []
 
     for sents in input_ids:
-        for words in sents:
-            word_length_list.append(len(words))
+        if type(sents[0]) is list:
+            for words in sents:
+                word_length_list.append(len(words))
         sent_length_list.append(len(sents))
 
     sorted_word_length = sorted(word_length_list)
     sorted_sent_length = sorted(sent_length_list)
 
-    return sorted_word_length[int(0.8*len(sorted_word_length))], \
-           sorted_sent_length[int(0.8*len(sorted_sent_length))]
+    sent_max_length = sorted_sent_length[int(0.9*len(sorted_sent_length))]
+    word_max_length = None
+    if sorted_word_length:
+        word_max_length = sorted_word_length[int(0.9*len(sorted_word_length))]
+
+    return word_max_length, sent_max_length
 
 
 # if __name__ == "__main__":
