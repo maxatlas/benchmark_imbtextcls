@@ -7,11 +7,14 @@ from Config import ModelConfig, DataConfig
 import build_model
 import build_dataset
 
+
+
+
 if __name__ == "__main__":
     from vars import datasets_meta
     from torch.nn import BCEWithLogitsLoss  # CrossEntropyLoss, MSELoss,
     dataset_i = 3
-    model_name = "mlp"
+    model_name = "roberta"
     pretrained_model_name = "roberta-base"
     emb_path = ""
     max_length = 0
@@ -21,11 +24,13 @@ if __name__ == "__main__":
 
     n_labels = train_df.label_feature.num_classes
 
-    mc = ModelConfig(model_name, n_labels, "bert",
-                     pretrained_tokenizer_name="bert-base-uncased",
-                     emb_path="parameters/emb_layer_bert",
-                     hidden_size=20,
-                     word_max_length=100)
+    mc = ModelConfig(model_name, n_labels,
+                     pretrained_model_name=pretrained_model_name)
+                     # "bert",
+                     # pretrained_tokenizer_name="bert-base-uncased",
+                     # emb_path="parameters/emb_layer_bert",
+                     # hidden_size=20,
+                     # word_max_length=100)
 
     model = build_model.main(mc)
     # weight = build_model.save_transformer_emb(model, model_name)

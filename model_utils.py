@@ -127,3 +127,17 @@ def pad_seq_han(text_ids):
     text_ids = torch.tensor(text_ids)
 
     return text_ids
+
+
+def load_transformer_emb(model, i=0):
+    weight = list(model.parameters())[i]
+    emb = nn.Embedding(*weight.shape)
+    emb.load_state_dict({"weight": weight})
+
+    return emb.state_dict()
+
+
+def save_transformer_emb(model, model_name):
+    i = 1 if model_name == "xlnet" else 0
+    emb = load_transformer_emb(model, i)
+    torch.save(emb, "parameters/emb_layer_%s" % model_name)

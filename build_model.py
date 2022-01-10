@@ -1,23 +1,22 @@
 import spacy
-import torch
-import torch.nn as nn
 
 from utils import preprocess_texts
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 
-def load_transformer_emb(model, i=0):
-    weight = list(model.parameters())[i]
-    emb = nn.Embedding(*weight.shape)
-    emb.load_state_dict({"weight": weight})
-
-    return emb
-
-
-def save_transformer_emb(model, model_name):
-    i = 1 if model_name == "xlnet" else 0
-    emb = load_transformer_emb(model, i)
-    torch.save(emb, "parameters/emb_layer_%s" % model_name)
+def save_all_transformer_emb_layer():
+    from Config import ModelConfig
+    from model_utils import save_transformer_emb
+    names = [("bert", "bert-base-uncased"),
+           ("xlnet", "xlnet-base-cased"),
+           ("gpt2", "gpt2"),
+           ("roberta", "roberta-base")]
+    for model_name, pretrained_name in names[-1:]:
+        print("\n"+model_name)
+        mc = ModelConfig(model_name, 2, pretrained_model_name=pretrained_name)
+        model = main(mc)
+        save_transformer_emb(model, model_name)
+        print("Done.")
 
 
 class Tokenizer:
@@ -77,8 +76,8 @@ class Tokenizer:
 
 
 def main(config):
-    config = config()
     Model = None
+    config = config()
 
     if config.model_name in ['gpt2', 'bert', 'xlnet', 'roberta']:
         if config.model_name == "gpt2":
@@ -112,7 +111,6 @@ def main(config):
             from classifiers.HAN import Model
 
         model = Model(config)
-
     model.tokenizer = Tokenizer(config.tokenizer_name,
                                 pretrained_model_name=config.pretrained_tokenizer_name)
 
