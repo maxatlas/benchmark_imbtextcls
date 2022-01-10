@@ -1,12 +1,13 @@
 import spacy
 import vars
 
-from utils import preprocess_texts
+from dataset_utils import preprocess_texts
 from nltk.tokenize import sent_tokenize, word_tokenize
 
 from vars import (model_names,
                   transformer_names,
                   parameter_folder)
+
 
 def save_all_transformer_emb_layer():
     from Config import ModelConfig

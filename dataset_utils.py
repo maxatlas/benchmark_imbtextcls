@@ -2,6 +2,19 @@ import copy
 import math
 
 
+def preprocess_text(text: str):
+    text = text.lower()
+    text = text.replace("\\n", " ")
+    text = text.replace("\n", " ")
+    text = text.replace("//", " ")
+    text = text.replace("\\", " ")
+    return text
+
+
+def preprocess_texts(texts:list):
+    return [preprocess_text(text) for text in texts]
+
+
 def set_imb_count_dict(count_dict: dict, tolerance: float, threshold: float,
                        cls_ratio_to_imb, sample_ratio_to_imb, balance_strategy: str = None,
                        split_ratio: str = "0.75/0.20/0.05"):
