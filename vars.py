@@ -1,4 +1,4 @@
-parameter_folder = "parameters"
+parameter_folder = "params"
 results_folder = "results"
 cache_folder = ".cache"
 

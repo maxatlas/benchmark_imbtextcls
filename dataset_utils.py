@@ -7,7 +7,6 @@ def set_imb_count_dict(count_dict: dict, tolerance: float, threshold: float,
                        split_ratio: str = "0.75/0.20/0.05"):
     split_ratio = [float(i) for i in split_ratio.split("/")]
 
-    train_no_by_label = None
     if not balance_strategy:
         train_no_by_label = {lb: math.floor(count_dict[lb] * split_ratio[0])
                              for lb in count_dict}
@@ -83,7 +82,7 @@ def _get_split_amount_by_strategy(count_dict: dict, strategy: str, ratio: float,
     elif strategy == "uniform":
         balanced_cls_counts = [None if is_imbalanced_cls(cls, count_dict, tolerance) else count_dict[cls] for cls in
                                count_dict]
-        balanced_cls_counts = list(filter(lambda a: a != None, balanced_cls_counts))
+        balanced_cls_counts = list(filter(lambda a: a is not None, balanced_cls_counts))
         bavg = sum(balanced_cls_counts) / len(balanced_cls_counts)
         out = {cls: math.floor(bavg * ratio) if is_imbalanced_cls(cls, count_dict, tolerance) and count_dict[cls] > bavg
                                            or not is_imbalanced_cls(cls, count_dict, tolerance) else math.floor(
@@ -135,3 +134,24 @@ def set_imbalance_by_cls(no_by_cls: dict, tolerance, threshold, cls_ratio_to_imb
     print("Checked.")
 
     return out
+
+
+def get_max_lengths(input_ids):
+    word_length_list = []
+    sent_length_list = []
+
+    for sents in input_ids:
+        if type(sents[0]) is list:
+            for words in sents:
+                word_length_list.append(len(words))
+        sent_length_list.append(len(sents))
+
+    sorted_word_length = sorted(word_length_list)
+    sorted_sent_length = sorted(sent_length_list)
+
+    sent_max_length = sorted_sent_length[int(0.9*len(sorted_sent_length))]
+    word_max_length = None
+    if sorted_word_length:
+        word_max_length = sorted_word_length[int(0.9*len(sorted_word_length))]
+
+    return word_max_length, sent_max_length

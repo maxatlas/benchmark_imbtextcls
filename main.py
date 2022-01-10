@@ -29,7 +29,7 @@ if __name__ == "__main__":
                      pretrained_model_name=pretrained_model_name)
                      # "bert",
                      # pretrained_tokenizer_name="bert-base-uncased",
-                     # emb_path="parameters/emb_layer_bert",
+                     # emb_path="params/emb_layer_bert",
                      # hidden_size=20,
                      # word_max_length=100)
 

@@ -4,7 +4,7 @@ import torch.nn as nn
 import dill
 import math
 
-from utils import get_max_lengths
+from dataset_utils import get_max_lengths
 
 
 class TaskModel(nn.Module):
@@ -140,4 +140,4 @@ def load_transformer_emb(model, i=0):
 def save_transformer_emb(model, model_name):
     i = 1 if model_name == "xlnet" else 0
     emb = load_transformer_emb(model, i)
-    torch.save(emb, "parameters/emb_layer_%s" % model_name)
+    torch.save(emb, "params/emb_layer_%s" % model_name)

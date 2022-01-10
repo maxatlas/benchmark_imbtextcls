@@ -15,7 +15,7 @@ model_name = "roberta"
 pretrained_tokenizer_name = None
 tokenizer_name = None
 pretrained_model_name = "roberta-base"
-emb_path = "parameters/emb_layer_glove"
+emb_path = "params/emb_layer_glove"
 
 md = {
     "model_name": model_name,

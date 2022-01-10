@@ -79,8 +79,8 @@ if __name__ == "__main__":
     mc = ModelConfig(model_name, n_labels,
                      tokenizer_name=tokenizer_name,
                      word_max_length=50,
-                     emb_path="parameters/emb_layer_glove",
-                     word_index_path="parameters/word_index"
+                     emb_path="params/emb_layer_glove",
+                     word_index_path="params/word_index"
                      )
     model = build_model.main(mc)
 

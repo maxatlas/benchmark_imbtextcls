@@ -104,7 +104,7 @@ class ModelConfig:
                  device=None,
                  word_max_length=None,
                  hidden_size=100,
-                 word_index_path="parameters/word_index",
+                 word_index_path="params/word_index",
                  emb_path=None,
                  n_layers=1,
                  activation_function="gelu",
