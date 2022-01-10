@@ -37,15 +37,15 @@ def main(task: TaskConfig):
     data_card.test = task.test
     print(str(task.model.to_dict()))
 
-    model = load_cache(task.model)
-    data = load_cache(task.data)
+    model = load_cache(model_card)
+    data = load_cache(data_card)
 
     if not model:
         model = build_model.main(model_card)
-        cache(task.model, model)
+        cache(model_card, model)
     if not data:
         data = build_dataset.main(data_card)
-        cache(task.data, data)
+        cache(data_card, data)
 
     train_tds, test_tds, val_tds = data
     train_dl = DataLoader(train_tds, batch_size=task.batch_size, shuffle=True)
