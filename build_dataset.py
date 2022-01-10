@@ -7,7 +7,7 @@ from datasets import load_dataset
 from Config import DataConfig
 
 from pandas.core.frame import DataFrame
-from TaskDataset import set_imb_count_dict
+from dataset_utils import set_imb_count_dict
 
 import pandas as pd
 
@@ -25,7 +25,8 @@ class TaskDataset:
         row = self.data.iloc[i]
 
         label = row[self.info.label_field]
-        if type(label) is float: label = int(label > 0.5)
+        if type(label) is float:
+            label = int(label > 0.5)
         data = row.loc[self.info.text_fields]
         data = "\n".join(data)
 
@@ -55,7 +56,8 @@ def split_df(df: DataFrame,
                   for i in range(label_features.num_classes)}
     train_dict, test_dict, val_dict = set_imb_count_dict(
         count_dict, config.imb_tolerance, config.imb_threshold,
-        config.cls_ratio_to_imb, config.sample_ratio_to_imb)
+        config.cls_ratio_to_imb, config.sample_ratio_to_imb,
+        config.balance_strategy)
 
     df, train_df = _retrieve_samples(df, train_dict)
     df, test_df = _retrieve_samples(df, test_dict)
