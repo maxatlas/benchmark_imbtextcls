@@ -6,7 +6,7 @@ from model_utils import TaskModel, pad_seq_to_length
 
 
 class Model(TaskModel):
-    def __init__(self, config, device="cpu"):
+    def __init__(self, config):
         super(Model, self).__init__(config)
         self.dropout = nn.Dropout(config.dropout)
         self.padding = config.padding
@@ -14,18 +14,17 @@ class Model(TaskModel):
         self.word_max_length = config.word_max_length
         self.stride = config.stride
 
-        self.device = device
-
         self.filters = config.filters
-        # filters = [filter_size]
+
         self.n_filters = len(self.filters)
         self.conv_layers = [self._create_conv_layers(kernel_size) for kernel_size in self.filters]
         self.pool_layers = [self._create_pool_layer(kernel_size) for kernel_size in self.filters]
-        self.cls = nn.Linear(self._get_output_size(), config.num_labels)
+
+        self.cls = nn.Linear(self._get_output_size(), config.num_labels).to(config.device)
 
     def _create_conv_layers(self, kernel_size):
         conv_layer = nn.Conv1d(self.emb_d, self.n_filters, kernel_size, self.stride)
-        conv_layer.to(self.device)
+        conv_layer.to(self.config.device)
         return conv_layer
 
     def _create_pool_layer(self, kernel_size):
@@ -34,10 +33,12 @@ class Model(TaskModel):
 
     def _get_output_size(self):
         def _get_size(length, kernel_size):
+
             out = math.floor((length + 2 *
                         self.padding - self.dilation * (kernel_size - 1)
                         - 1) / self.stride + 1)
             return out
+
         output_size = [_get_size(self.word_max_length, kernel_size)
                        for kernel_size in self.filters]
         output_size = [_get_size(conv_size, kernel_size)
@@ -47,7 +48,7 @@ class Model(TaskModel):
         return output_size
 
     def forward(self, input_ids):
-        input_ids = pad_seq_to_length(input_ids, self.config.word_max_length)
+        input_ids = pad_seq_to_length(input_ids, self.config.word_max_length).to(self.config.device)
 
         embeds = self.emb(input_ids)
         # (N, L, D) -> (N, D, L)

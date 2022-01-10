@@ -24,10 +24,10 @@ class Model(TaskModel):
         self.sent_context_weight = nn.Parameter(torch.Tensor(2 * config.sent_hidden_size, 1))
 
         self.word_gru = nn.GRU(self.emb_d, self.word_hidden_size, num_layers=config.num_layers,
-                               bidirectional=True, dropout=config.dropout)
+                               bidirectional=True, dropout=config.dropout).to(self.config.device)
         self.sent_gru = nn.GRU(2 * self.word_hidden_size, self.sent_hidden_size, num_layers=config.num_layers,
-                               bidirectional=True, dropout=config.dropout)
-        self.cls = nn.Linear(2 * self.sent_hidden_size, self.num_labels)
+                               bidirectional=True, dropout=config.dropout).to(self.config.device)
+        self.cls = nn.Linear(2 * self.sent_hidden_size, self.num_labels).to(self.config.device)
 
         self._create_weights()
 
@@ -45,7 +45,7 @@ class Model(TaskModel):
     def forward(self, input_ids):
         sent_list = []
 
-        input_ids = pad_seq_han(input_ids)
+        input_ids = pad_seq_han(input_ids).to(self.config.device)
         input_ids = input_ids.permute(1, 0, 2)  # (max_sent_length, batch_size, max_word_length)
 
         for sent in input_ids:

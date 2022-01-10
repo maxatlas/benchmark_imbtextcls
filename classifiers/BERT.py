@@ -13,11 +13,11 @@ class Model(BertPreTrainedModel):
         self.config = config
         self.tokenizer = None
 
-        self.bert = BertModel(config)
+        self.bert = BertModel(config).to(self.config.device)
         classifier_dropout = config.hidden_dropout_prob \
             if not config.classifier_dropout else config.classifier_dropout
-        self.dropout = nn.Dropout(classifier_dropout)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.dropout = nn.Dropout(classifier_dropout).to(self.config.device)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels).to(self.config.device)
 
         # Initialize weights and apply final processing
         self.init_weights()
@@ -27,9 +27,9 @@ class Model(BertPreTrainedModel):
 
         input_ids, token_type_ids, attention_mask = self.tokenizer.core(texts).values()
 
-        input_ids = pad_seq(input_ids, max_length)
-        attention_mask = pad_seq(attention_mask, max_length)
-        token_type_ids = pad_seq(token_type_ids, max_length)
+        input_ids = pad_seq(input_ids, max_length).to(self.config.device)
+        attention_mask = pad_seq(attention_mask, max_length).to(self.config.device)
+        token_type_ids = pad_seq(token_type_ids, max_length).to(self.config.device)
 
         outputs = self.bert(
             input_ids,

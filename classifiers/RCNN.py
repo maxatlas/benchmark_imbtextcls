@@ -9,11 +9,11 @@ class Model(TaskModel):
     def __init__(self, config):
         super(Model, self).__init__(config)
         self.lstm = nn.LSTM(self.emb_d, config.cls_hidden_size, num_layers=config.num_layers,
-                            dropout=config.dropout, bidirectional=True)
-        self.W2 = nn.Linear(2 * config.cls_hidden_size + self.emb_d, config.cls_hidden_size)
+                            dropout=config.dropout, bidirectional=True).to(self.config.device)
+        self.W2 = nn.Linear(2 * config.cls_hidden_size + self.emb_d, config.cls_hidden_size).to(self.config.device)
 
     def forward(self, input_ids):
-        input_ids = pad_seq(input_ids, self.config.word_max_length)
+        input_ids = pad_seq(input_ids, self.config.word_max_length).to(self.config.device)
 
         x = self.emb(input_ids)
         x = x.permute(1, 0, 2)  # input.size() = (num_sequences, batch_size, embedding_length)

@@ -15,11 +15,11 @@ class Model(GPT2PreTrainedModel):
 
         self.num_labels = config.num_labels
 
-        self.transformer = GPT2Model(config)
+        self.transformer = GPT2Model(config).to(self.config.device)
         dropout = config.resid_pdrop \
             if "dropout" not in config.to_dict() else config.dropout
-        self.dropout = nn.Dropout(dropout)
-        self.classifier = nn.Linear(config.n_embd, config.num_labels)
+        self.dropout = nn.Dropout(dropout).to(self.config.device)
+        self.classifier = nn.Linear(config.n_embd, config.num_labels).to(self.config.device)
 
         self.cls_type = "last"
 
@@ -33,8 +33,8 @@ class Model(GPT2PreTrainedModel):
 
         input_ids, attention_mask = self.tokenizer.core(texts).values()
 
-        input_ids = pad_seq(input_ids, max_length)
-        attention_mask = pad_seq(attention_mask, max_length)
+        input_ids = pad_seq(input_ids, max_length).to(self.config.device)
+        attention_mask = pad_seq(attention_mask, max_length).to(self.config.device)
 
         outputs = self.transformer(
             input_ids=input_ids,

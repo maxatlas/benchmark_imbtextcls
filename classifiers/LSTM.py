@@ -9,11 +9,11 @@ class Model(TaskModel):
         super(Model, self).__init__(config)
         self.lstm = nn.LSTM(self.emb_d, config.cls_hidden_size, batch_first=True,
                             num_layers=config.num_layers,
-                            dropout=config.dropout)
-        self.dropout = nn.Dropout(config.dropout)
+                            dropout=config.dropout).to(config.device)
+        self.dropout = nn.Dropout(config.dropout).to(config.device)
 
     def forward(self, input_ids):
-        input_ids = pad_seq(input_ids, self.config.word_max_length)
+        input_ids = pad_seq(input_ids, self.config.word_max_length).to(self.config.device)
 
         embeds = self.emb(input_ids)
         lstm_out, (ht, ct) = self.lstm(embeds)

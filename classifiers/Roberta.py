@@ -13,14 +13,13 @@ class Model(RobertaPreTrainedModel):
 
     def __init__(self, config):
         super().__init__(config)
-        self.num_labels = config.num_labels
         self.config = config
-        self.roberta = RobertaModel(config, add_pooling_layer=False)
+        self.roberta = RobertaModel(config, add_pooling_layer=False).to(self.config.device)
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
         )
-        self.dropout = nn.Dropout(classifier_dropout)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels)
+        self.dropout = nn.Dropout(classifier_dropout).to(self.config.device)
+        self.classifier = nn.Linear(config.hidden_size, config.num_labels).to(self.config.device)
 
         self.init_weights()
 
@@ -35,11 +34,9 @@ class Model(RobertaPreTrainedModel):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         input_ids, attention_mask = self.tokenizer.core(texts).values()
-        input_ids = pad_seq(input_ids, max_length)
-        attention_mask = pad_seq(attention_mask, max_length)
+        input_ids = pad_seq(input_ids, max_length).to(self.config.device)
+        attention_mask = pad_seq(attention_mask, max_length).to(self.config.device)
 
-        input_ids, attention_mask = torch.tensor(input_ids),\
-                                    torch.tensor(attention_mask)
         outputs = self.roberta(
             input_ids,
             attention_mask=attention_mask,

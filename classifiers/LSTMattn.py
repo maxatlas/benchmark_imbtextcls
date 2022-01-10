@@ -9,9 +9,10 @@ class Model(TaskModel):
     def __init__(self, config):
         super(Model, self).__init__(config)
 
-        self.lstm = nn.LSTM(self.emb_d, config.cls_hidden_size, batch_first=True, num_layers=config.num_layers, )
-        self.cls = nn.Linear(config.cls_hidden_size, config.num_labels)
-        self.dropout = nn.Dropout(config.dropout)
+        self.lstm = nn.LSTM(self.emb_d, config.cls_hidden_size,
+                            batch_first=True, num_layers=config.num_layers, ).to(self.config.device)
+        self.cls = nn.Linear(config.cls_hidden_size, config.num_labels).to(self.config.device)
+        self.dropout = nn.Dropout(config.dropout).to(self.config.device)
 
     @staticmethod
     def pay_attn(lstm_output):
@@ -23,7 +24,7 @@ class Model(TaskModel):
         return weighted_f
 
     def forward(self, input_ids):
-        input_ids = pad_seq(input_ids, self.config.word_max_length)
+        input_ids = pad_seq(input_ids, self.config.word_max_length).to(self.config.device)
 
         embeds = self.emb(input_ids)
         out = self.lstm(embeds)

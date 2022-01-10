@@ -17,9 +17,9 @@ class Model(XLNetPreTrainedModel):
         self.config = config
         self.tokenizer = None
 
-        self.transformer = XLNetModel(config)
-        self.sequence_summary = modeling_utils.SequenceSummary(config)
-        self.classifier = nn.Linear(config.d_model, config.num_labels)
+        self.transformer = XLNetModel(config).to(self.config.device)
+        self.sequence_summary = modeling_utils.SequenceSummary(config).to(self.config.device)
+        self.classifier = nn.Linear(config.d_model, config.num_labels).to(self.config.device)
 
         self.init_weights()
 
@@ -33,9 +33,9 @@ class Model(XLNetPreTrainedModel):
 
         input_ids, token_type_ids, attention_mask = self.tokenizer.core(texts).values()
 
-        input_ids = pad_seq(input_ids)
-        attention_mask = pad_seq(attention_mask)
-        token_type_ids = pad_seq(token_type_ids)
+        input_ids = pad_seq(input_ids).to(self.config.device)
+        attention_mask = pad_seq(attention_mask).to(self.config.device)
+        token_type_ids = pad_seq(token_type_ids).to(self.config.device)
 
         transformer_outputs = self.transformer(
             input_ids,
