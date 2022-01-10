@@ -3,16 +3,22 @@ import datasets
 import itertools
 
 import torch
-import math
 
-from copy import deepcopy
 from collections import defaultdict
 import matplotlib.pyplot as plt
 from datasets import load_dataset
 import gensim.downloader as api
 from pathlib import Path
 from os import rename
-from torch.nn.utils.rnn import pad_sequence
+
+
+from sklearn.metrics import (f1_score,
+                             roc_curve,
+                             auc,
+                             recall_score,
+                             precision_score,
+                             classification_report)
+from copy import deepcopy
 
 
 def get_label_ids(labels, label_names):
@@ -32,12 +38,31 @@ def get_label_ids(labels, label_names):
     return label_ids
 
 
-def pad_sent_word(text_ids, word_max_length, sent_max_length):
-    text_ids = [[sent.extend([0] * (word_max_length - len(sent))) for sent in doc] for doc in text_ids] # pad words
-    text_ids = [doc.extend([[0] * word_max_length]*(sent_max_length-len(doc))) for doc in text_ids] # pad sentences
-    text_ids = [torch.tensor(text_id) for text_id in text_ids]
+def metrics_frame(preds, labels, label_names):
+    recall_micro = recall_score(labels, preds, average="micro")
+    recall_macro = recall_score(labels, preds, average="macro")
+    precision_micro = precision_score(labels, preds, average="micro")
+    precision_macro = precision_score(labels, preds, average="macro")
+    f1_micro = f1_score(labels, preds, average="micro")
+    f1_macro = f1_score(labels, preds, average="macro")
+    fpr, tpr, thresholds = roc_curve(labels, preds, pos_label=1)
+    auc_res = auc(fpr, tpr)
+    cr = classification_report(labels, preds,)
+                               # labels=list(range(len(label_names))), target_names=label_names)
 
-    return text_ids
+    model_metrics = {
+        "Precision, Micro": precision_micro,
+        "Precision, Macro": precision_macro,
+        "Recall, Micro": recall_micro,
+        "Recall, Macro": recall_macro,
+        "F1 score, Micro": f1_micro,
+        "F1 score, Macro": f1_macro,
+        "ROC curve": (fpr, tpr, thresholds),
+        "AUC": auc_res,
+        "Classification report": cr,
+    }
+
+    return model_metrics
 
 
 def matrix_mul(input, weight, bias=False):
@@ -64,29 +89,20 @@ def element_wise_mul(input1, input2):
     return torch.sum(output, 0).unsqueeze(0)
 
 
-def pad_sequence_to_length(text_ids, max_length, batch_first=True, padding_value=0):
-    """
-
-    :param text_ids: [torch.tensor]
-    :return:
-    """
-    tensor_of_interest = text_ids[0]
-    length = tensor_of_interest.size(0)
-    len_to_pad = max_length - length
-    tensor_of_interest = torch.cat((tensor_of_interest, torch.tensor([0]*len_to_pad)))
-    text_ids[0] = tensor_of_interest
-
-    text_ids = pad_sequence(text_ids, batch_first=batch_first, padding_value=padding_value)
-    return text_ids
-
-def preprocess_text(text:str):
+def preprocess_text(text: str):
     text = text.lower()
+    text = text.replace("\\n", " ")
+    text = text.replace("\n", " ")
     text = text.replace("//", " ")
     text = text.replace("\\", " ")
-    text = text.replace("\n", " ")
-    text = text.replace("\\n", " ")
-    # text = text[1:] if text.startswith(" ") else text
     return text
+
+
+def preprocess_texts(texts:list):
+    text = "[sep]".join(texts).lower()
+    text = preprocess_text(text)
+    texts = text.split("[sep]")
+    return texts
 
 
 def get_feature_from_all_splits(ds: datasets.dataset_dict.DatasetDict, texts_field: list, label_field:str):
@@ -133,7 +149,7 @@ def get_kv(kvtype:str):
     :param kvtype: "glove"/"word2vec"/"fasttext"
     :return: the weight matrix as KeyVectors
     """
-    from task_config import kvtypes
+    from vars import kvtypes
     kv = api.load(kvtypes.get(kvtype))
     return kv
 
@@ -232,15 +248,20 @@ def get_max_lengths(input_ids):
     sent_length_list = []
 
     for sents in input_ids:
-        for words in sents:
-            word_length_list.append(len(words))
+        if type(sents[0]) is list:
+            for words in sents:
+                word_length_list.append(len(words))
         sent_length_list.append(len(sents))
 
     sorted_word_length = sorted(word_length_list)
     sorted_sent_length = sorted(sent_length_list)
 
-    return sorted_word_length[int(0.8*len(sorted_word_length))], \
-           sorted_sent_length[int(0.8*len(sorted_sent_length))]
+    sent_max_length = sorted_sent_length[int(0.9*len(sorted_sent_length))]
+    word_max_length = None
+    if sorted_word_length:
+        word_max_length = sorted_word_length[int(0.9*len(sorted_word_length))]
+
+    return word_max_length, sent_max_length
 
 
 # if __name__ == "__main__":
