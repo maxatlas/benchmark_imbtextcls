@@ -1,8 +1,12 @@
 import spacy
+import vars
 
 from utils import preprocess_texts
 from nltk.tokenize import sent_tokenize, word_tokenize
 
+from vars import (model_names,
+                  transformer_names,
+                  parameter_folder)
 
 def save_all_transformer_emb_layer():
     from Config import ModelConfig
@@ -70,9 +74,15 @@ class Tokenizer:
             docs = [[word_tokenize(sent) for sent in sent_tokenize(doc)] for doc in texts]
         elif self.name == "nltk":
             docs = [self.core(text) for text in texts]
-        elif self.name in ["bert", "gpt2", "xlnet", "roberta"]:
+        elif self.name in transformer_names:
             docs = self.core(texts)
         return docs
+
+    def __len__(self):
+        if self.name in transformer_names:
+            return len(self.core)
+        else:
+            return vars.cutoff+2
 
 
 def main(config):
@@ -88,12 +98,19 @@ def main(config):
             from classifiers.XLNet import Model
         elif config.model_name == "roberta":
             from classifiers.Roberta import Model
+
         if config.pretrained_model_name:
             model = Model(config).from_pretrained(
                 config.pretrained_model_name, num_labels=config.num_labels)
             if config.model_name == "roberta":
                 model.config.max_position_embeddings = 512
+
+        # Unify tokenizer length and model vocab size
         else:
+            tokenizer = Tokenizer(config.tokenizer_name,
+                      pretrained_model_name=config.pretrained_tokenizer_name)
+
+            config.vocab_size = len(tokenizer)
             model = Model(config)
 
     else:
@@ -111,6 +128,7 @@ def main(config):
             from classifiers.HAN import Model
 
         model = Model(config)
+
     model.tokenizer = Tokenizer(config.tokenizer_name,
                                 pretrained_model_name=config.pretrained_tokenizer_name)
 

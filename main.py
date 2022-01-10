@@ -18,8 +18,9 @@ if __name__ == "__main__":
     pretrained_model_name = "roberta-base"
     emb_path = ""
     max_length = 0
+    test = None
 
-    dc = DataConfig(*datasets_meta[dataset_i].values())
+    dc = DataConfig(*datasets_meta[dataset_i].values(), test=test)
     train_df, _, _ = build_dataset.main(dc)
 
     n_labels = train_df.label_feature.num_classes

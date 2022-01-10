@@ -15,10 +15,10 @@ class TaskModel(nn.Module):
         emb_weights = torch.load(config.emb_path)
 
         vocab_size, self.emb_d = emb_weights['weight'].shape
-        self.emb = nn.Embedding(vocab_size, self.emb_d)
+        self.emb = nn.Embedding(vocab_size, self.emb_d).to(config.device)
         self.emb.load_state_dict(emb_weights)
 
-        self.cls = nn.Linear(config.cls_hidden_size, config.num_labels)
+        self.cls = nn.Linear(config.cls_hidden_size, config.num_labels).to(config.device)
 
         self.word_index = dill.load(open(config.word_index_path, "rb"))
 
@@ -43,7 +43,7 @@ class TaskModel(nn.Module):
 
         logits, _ = self.forward(token_ids)
 
-        label_ids = get_label_ids(labels, label_names)
+        label_ids = get_label_ids(labels, label_names).to(self.config.device)
         loss = loss_func(logits, label_ids)
 
         return loss
@@ -80,7 +80,7 @@ def get_label_ids(labels, label_names):
 
 
 def batch_train(self, texts, labels, label_names, loss_func):
-    label_ids = get_label_ids(labels, label_names)
+    label_ids = get_label_ids(labels, label_names).to(self.config.device)
     logits, _ = self.forward(texts)
 
     loss = loss_func(logits, label_ids)

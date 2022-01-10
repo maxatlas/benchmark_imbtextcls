@@ -86,6 +86,7 @@ def main(config: DataConfig):
         df = df.replace(replace_dict)
 
     train, test, val = split_df(df, label_features, config)
+    train, test, val = train[:config.test], test[:config.test], val[:config.test]
     train, test, val = TaskDataset(train, label_features, config), \
                        TaskDataset(test, label_features, config), \
                        TaskDataset(val, label_features, config),

@@ -1,11 +1,7 @@
-import hashlib
-import dill
-
-parameter_folder = "parameters"
-
-model_names = ["bert", "xlnet", "roberta", "gpt2", "lstm", "lstmattn", "cnn", "rcnn", "han", "mlp"]
-transformer_names = model_names[:4]
-customized_model_names = model_names[4:]
+from hashlib import sha256
+from vars import (model_names,
+                  transformer_names,
+                  parameter_folder)
 
 
 def get_tokenizer_name(pretrained_tokenizer_name):
@@ -14,17 +10,17 @@ def get_tokenizer_name(pretrained_tokenizer_name):
 
 def transformer_config(self, word_max_length, dropout, activation_function):
     if self.model_name == "bert" or self.model_name == "roberta":
-        self.max_position_embeddings = word_max_length
+        # only record max length when tokenizer isn't pretrained.
+        if not self.pretrained_tokenizer_name:
+            self.max_position_embeddings = word_max_length
         self.hidden_dropout_prob = dropout
         self.classifier_dropout = dropout
         self.attention_probs_dropout_prob = dropout
 
-        if self.model_name == "roberta":
-            self.max_position_embeddings = 2 if not word_max_length else word_max_length
-            self.vocab_size = 2 if not word_max_length else word_max_length
-
     elif self.model_name == "gpt2":
-        self.n_positions = word_max_length
+        # only record max length when tokenizer isn't pretrained.
+        if not self.pretrained_tokenizer_name:
+            self.n_positions = word_max_length
 
         self.resid_pdrop = dropout
         self.embd_pdrop = dropout
@@ -60,7 +56,8 @@ class DataConfig:
                  device = None,
                  split_ratio="0.75/0.20/0.05",
                  train_set_transform=None,
-                 threshold=0.6, tolerance=0.3, ):
+                 threshold=0.6, tolerance=0.3,
+                 test=None):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
         assert (type(split_ratio) is str and all([float(e) for e in split_ratio.split("/")])), \
@@ -85,10 +82,15 @@ class DataConfig:
         # Both none if dataset already imbalanced.
 
         self.train_set_dist = train_set_transform
+
+        self.test = test
         self.device = device
 
     def to_dict(self):
         return self.__dict__
+
+    def idx(self):
+        return sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
 
 
 class ModelConfig:
@@ -109,6 +111,7 @@ class ModelConfig:
                  filters=(2, 3, 4, 5),
                  pretrained_model_name="",
                  pretrained_tokenizer_name="",
+                 lr=0.001,
                  ):
 
         self.model_name = model_name.lower()
@@ -116,6 +119,8 @@ class ModelConfig:
 
         self.tokenizer_name = tokenizer_name
         self.pretrained_tokenizer_name = pretrained_tokenizer_name
+
+        self.lr = lr
 
         assert n_labels, "Must specify number of labels (n_labels)."
         assert self.model_name in model_names, \
@@ -136,6 +141,11 @@ class ModelConfig:
             self.pretrained_model_name = pretrained_model_name
             self.pretrained_tokenizer_name = pretrained_model_name
 
+            # Fix a Roberta pretrained bug.
+            if self.model_name == "roberta":
+                self.max_position_embeddings = 2 if not word_max_length else word_max_length
+                self.vocab_size = 2 if not word_max_length else word_max_length
+
         else:  # Customized models or transformers
             if model_name in transformer_names:  # Customized transformers
                 transformer_config(self, word_max_length, dropout, activation_function)
@@ -151,7 +161,7 @@ class ModelConfig:
                     # tokenizer_config(self)
             else:  # Customized non transformer models
                 model_config(self, padding, dilation, stride, filters, hidden_size)
-
+                assert word_max_length, "Customized non transformer models require word_max_length specified."
                 self.word_max_length = word_max_length
                 self.emb_path = emb_path
                 self.word_index_path = word_index_path
@@ -210,12 +220,17 @@ class ModelConfig:
     def to_dict(self):
         return self.__dict__
 
+    def idx(self):
+        return sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
+
 
 class TaskConfig:
-    def __init__(self, model_config_dict: dict,
+    def __init__(self,
                  data_config_dict: dict,
+                 model_config_dict: dict,
                  batch_size: int,
                  loss_func,
+                 optimizer,
                  device: str = "cpu",
                  test: int = 0,
                  epoch: int = 1,
@@ -225,20 +240,21 @@ class TaskConfig:
         self.device = device
         self.epoch = epoch
         self.test = test
+        self.optimizer = optimizer
 
-        self.model_config_dict = model_config_dict
-        self.data_config_dict = data_config_dict
+        self.model_config = model_config_dict
+        self.data_config = data_config_dict
 
-        self.model_config = None
-        self.data_config = None
+        self.model = None
+        self.data = None
 
         self.cache_folder = ".job_cache"
 
         self.__post_init__()
 
     def __post_init__(self):
-        self.model_config = ModelConfig(**self.model_config_dict)
-        self.data_config = DataConfig(**self.data_config_dict)
+        self.model = ModelConfig(**self.model_config)
+        self.data = DataConfig(**self.data_config)
 
     def to_dict(self):
         return self.__dict__
