@@ -1,9 +1,11 @@
 import dill
-
+import os
 import torch
 import build_model
 import build_dataset
 
+from vars import (cache_folder,
+                  results_folder)
 from tqdm import tqdm
 from Config import (TaskConfig)
 from torch.utils.data import DataLoader
@@ -13,8 +15,33 @@ from time import time
 from utils import metrics_frame
 
 
+def save_result(task: TaskConfig, results: dict):
+    print(task.idx())
+    folder = "_".join(task.data.huggingface_dataset_name)\
+                  + "_balance_strategy_%s" % task.data.balance_strategy
+    folder = "%s/%s" % (results_folder, folder)
+    try:
+        os.listdir(folder)
+    except FileNotFoundError:
+        os.mkdir(folder)
+
+    filename = "%s/%s_%s" % (folder, task.model.model_name, task.idx())
+    res = [{
+        "model": task.model_config,
+        "result": results,
+        "task": task.to_dict()
+    }]
+
+    try:
+        ress = dill.load(open(filename, "rb"))
+        ress += res
+        dill.dump(ress, open(filename, "wb"))
+    except FileNotFoundError:
+        dill.dump(res, open(filename, "wb"))
+
+
 def load_cache(card):
-    filename = ".job_cache/%s" % card.idx()
+    filename = "%s/%s" % (cache_folder, card.idx())
     try:
         return dill.load(open(filename, "rb"))
     except FileNotFoundError:
@@ -22,7 +49,7 @@ def load_cache(card):
 
 
 def cache(card, data):
-    filename = ".job_cache/%s" % card.idx()
+    filename = "%s/%s" % (cache_folder, card.idx())
     dill.dump(data, open(filename, 'wb'))
 
 
@@ -72,7 +99,7 @@ def main(task: TaskConfig):
             optimizer.step()
             optimizer.zero_grad()
 
-        print("Epoch %i finished." %i)
+        print("Epoch %i finished." % i)
         clocks += time() - clock_start
 
 
@@ -97,6 +124,7 @@ def main(task: TaskConfig):
     res = metrics_frame(preds_eval, labels_eval, train_tds.label_feature.names)
     res['seconds_avg_epoch'] = clocks/task.epoch
     if not task.test:
+        save_result(task, res)
         model.save_pretrained(save_directory="models/%s/%s" % (task.model.model_name,
                                                                              datetime.today()),
                                             save_config=True, state_dict=model.state_dict())

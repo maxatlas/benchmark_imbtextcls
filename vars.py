@@ -1,6 +1,9 @@
 parameter_folder = "parameters"
+results_folder = "results"
+cache_folder = ".cache"
 
-model_names = ["bert", "xlnet", "roberta", "gpt2", "lstm", "lstmattn", "cnn", "rcnn", "han", "mlp"]
+model_names = ["bert", "xlnet", "roberta", "gpt2", "lstm",
+               "lstmattn", "cnn", "rcnn", "han", "mlp"]
 transformer_names = model_names[:4]
 customized_model_names = model_names[4:]
 

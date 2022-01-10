@@ -1,3 +1,5 @@
+import copy
+
 from hashlib import sha256
 from vars import (model_names,
                   transformer_names,
@@ -53,17 +55,19 @@ class DataConfig:
                  text_fields: list,
                  cls_ratio_to_imb: float,
                  sample_ratio_to_imb: float,
-                 device = None,
+                 device=None,
                  split_ratio="0.75/0.20/0.05",
-                 train_set_transform=None,
+                 balance_strategy=None,
                  threshold=0.6, tolerance=0.3,
                  test=None):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
-        assert (type(split_ratio) is str and all([float(e) for e in split_ratio.split("/")])), \
-            "Wrong format for split_ratio. Should be 'train/test/val'. A valid example: '0.75/0.2/0.05'"
-        assert train_set_transform in [None, "undersample"], \
-            "Train set distribution could be None or 'undersample'. Implement if need more."
+        assert (type(split_ratio) is str and all([float(e) for e in split_ratio.split("/")])
+                and len(split_ratio.split("/")) > 1), \
+            "Wrong format for split_ratio. Should be 'train/test/val' or 'train/test'. " \
+            "A valid example: '0.75/0.2/0.05'"
+        assert not balance_strategy or balance_strategy in ["undersample", "uniform"], \
+            "Train set split strategy could be None, 'undersample', 'uniform'. Implement if need more."
 
         self.huggingface_dataset_name = huggingface_dataset_name
         # Path to glove/word2vec/fasttext. None if won't transform from token to token index.
@@ -81,7 +85,7 @@ class DataConfig:
         self.sample_ratio_to_imb = sample_ratio_to_imb
         # Both none if dataset already imbalanced.
 
-        self.train_set_dist = train_set_transform
+        self.balance_strategy = balance_strategy
 
         self.test = test
         self.device = device
@@ -248,7 +252,7 @@ class TaskConfig:
         self.model = None
         self.data = None
 
-        self.cache_folder = ".job_cache"
+        self.cache_folder = ".cache"
 
         self.__post_init__()
 
@@ -257,7 +261,13 @@ class TaskConfig:
         self.data = DataConfig(**self.data_config)
 
     def to_dict(self):
-        return self.__dict__
+        out = copy.deepcopy(self.__dict__)
+        del out['model']
+        del out['data']
+        return out
+
+    def idx(self):
+        return sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
 
 
 if __name__ == "__main__":
