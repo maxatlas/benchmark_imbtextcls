@@ -13,6 +13,9 @@ class Model(BertPreTrainedModel):
         self.config = config
         self.tokenizer = None
 
+        if 'device' not in config.to_dict().keys():
+            self.config.device = "cuda:0"
+
         self.bert = BertModel(config).to(self.config.device)
         classifier_dropout = config.hidden_dropout_prob \
             if not config.classifier_dropout else config.classifier_dropout
@@ -47,6 +50,9 @@ class Model(BertPreTrainedModel):
         return logits, preds
 
     def batch_train(self, texts, labels, label_names, loss_func):
+        self.bert = self.bert.to(self.config.device)
+        self.dropout = self.dropout.to(self.config.device)
+        self.classifier = self.classifier.to(self.config.device)
         return batch_train(self, texts, labels, label_names, loss_func)
 
     def batch_eval(self, texts, labels, label_names):

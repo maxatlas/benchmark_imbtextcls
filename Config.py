@@ -232,7 +232,7 @@ class TaskConfig:
                  loss_func,
                  optimizer,
                  device: str = "cpu",
-                 test: int = 0,
+                 test=None,
                  epoch: int = 1,
                  ):
         self.batch_size = batch_size

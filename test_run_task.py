@@ -11,15 +11,16 @@ dd = datasets_meta[dataset_i]
 dd['test'] = 3
 n_labels = 6
 
-model_name = "cnn"
-pretrained_tokenizer_name = "bert-base-uncased"
+model_name = "roberta"
+pretrained_tokenizer_name = None
 tokenizer_name = None
-pretrained_model_name = None
+pretrained_model_name = "roberta-base"
 emb_path = "parameters/emb_layer_glove"
 
 md = {
     "model_name": model_name,
     "tokenizer_name": tokenizer_name,
+    "pretrained_model_name": pretrained_model_name,
     "pretrained_tokenizer_name": pretrained_tokenizer_name,
     "n_labels": n_labels,
     "word_max_length": 50,
@@ -32,7 +33,7 @@ tc = TaskConfig(dd, md,
                 test=3,
                 loss_func=BCEWithLogitsLoss(),
                 optimizer=optimizer,
-                device="cuda:0",
+                device="cpu",
                 )
 
 res = run_task.main(tc)

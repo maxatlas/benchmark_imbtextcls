@@ -14,6 +14,10 @@ class Model(RobertaPreTrainedModel):
     def __init__(self, config):
         super().__init__(config)
         self.config = config
+
+        if 'device' not in config.to_dict().keys():
+            self.config.device = "cuda:0"
+
         self.roberta = RobertaModel(config, add_pooling_layer=False).to(self.config.device)
         classifier_dropout = (
             config.classifier_dropout if config.classifier_dropout is not None else config.hidden_dropout_prob
@@ -51,6 +55,9 @@ class Model(RobertaPreTrainedModel):
         return logits, preds
 
     def batch_train(self, texts, labels, label_names, loss_func):
+        self.roberta = self.roberta.to(self.config.device)
+        self.dropout = self.dropout.to(self.config.device)
+        self.classifier = self.classifier.to(self.config.device)
         return batch_train(self, texts, labels, label_names, loss_func)
 
     def batch_eval(self, texts, labels, label_names):

@@ -15,6 +15,10 @@ class Model(XLNetPreTrainedModel):
         super().__init__(config)
 
         self.config = config
+
+        if 'device' not in config.to_dict().keys():
+            self.config.device = "cuda:0"
+
         self.tokenizer = None
 
         self.transformer = XLNetModel(config).to(self.config.device)
@@ -53,6 +57,9 @@ class Model(XLNetPreTrainedModel):
         return logits, preds
 
     def batch_train(self, texts, labels, label_names, loss_func):
+        self.transformer = self.transformer.to(self.config.device)
+        self.sequence_summary = self.sequence_summary.to(self.config.device)
+        self.classifier = self.classifier.to(self.config.device)
         return batch_train(self, texts, labels, label_names, loss_func)
 
     def batch_eval(self, texts, labels, label_names):

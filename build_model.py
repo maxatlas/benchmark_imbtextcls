@@ -102,13 +102,14 @@ def main(config):
         if config.pretrained_model_name:
             model = Model(config).from_pretrained(
                 config.pretrained_model_name, num_labels=config.num_labels)
+            model.config.device = config.device
             if config.model_name == "roberta":
                 model.config.max_position_embeddings = 512
 
         # Unify tokenizer length and model vocab size
         else:
             tokenizer = Tokenizer(config.tokenizer_name,
-                      pretrained_model_name=config.pretrained_tokenizer_name)
+                                  pretrained_model_name=config.pretrained_tokenizer_name)
 
             config.vocab_size = len(tokenizer)
             model = Model(config)

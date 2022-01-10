@@ -13,6 +13,9 @@ class Model(GPT2PreTrainedModel):
         self.config = config
         self.tokenizer = None
 
+        if 'device' not in config.to_dict().keys():
+            self.config.device = "cuda:0"
+
         self.num_labels = config.num_labels
 
         self.transformer = GPT2Model(config).to(self.config.device)
@@ -62,6 +65,9 @@ class Model(GPT2PreTrainedModel):
         return logits, preds
 
     def batch_train(self, texts, labels, label_names, loss_func):
+        self.transformer = self.transformer.to(self.config.device)
+        self.dropout = self.dropout.to(self.config.device)
+        self.classifier = self.classifier.to(self.config.device)
         return batch_train(self, texts, labels, label_names, loss_func)
 
     def batch_eval(self, texts, labels, label_names):
