@@ -33,7 +33,7 @@ def transformer_config(self, word_max_length, dropout, activation_function):
 
 
 def tokenizer_config(self):
-    return
+    return self
 
 
 def model_config(self, padding, dilation, stride, filters, hidden_size):
@@ -55,7 +55,6 @@ class DataConfig:
                  text_fields: list,
                  cls_ratio_to_imb: float,
                  sample_ratio_to_imb: float,
-                 device=None,
                  split_ratio="0.75/0.20/0.05",
                  balance_strategy=None,
                  threshold=0.6, tolerance=0.3,
@@ -88,7 +87,6 @@ class DataConfig:
         self.balance_strategy = balance_strategy
 
         self.test = test
-        self.device = device
 
     def to_dict(self):
         return self.__dict__
@@ -99,7 +97,7 @@ class DataConfig:
 
 class ModelConfig:
     def __init__(self, model_name,
-                 n_labels=None,
+                 num_labels,
                  tokenizer_name=None,
                  device=None,
                  word_max_length=None,
@@ -126,7 +124,7 @@ class ModelConfig:
 
         self.lr = lr
 
-        # assert n_labels, "Must specify number of labels (n_labels)."
+        assert num_labels, "Must specify number of labels (num_labels)."
         assert self.model_name in model_names, \
             "Model name should be any of the following:" \
             "\n\t\tBert\n\t\tXLNet" \
@@ -134,7 +132,7 @@ class ModelConfig:
             "\n\t\tlstmattn (LSTM with attention) " \
             "\n\t\tCNN\n\t\tRCNN\n\t\tHAN\n\t\tMLP"
 
-        self.num_labels = n_labels
+        self.num_labels = num_labels
         self.device = device
 
         if pretrained_model_name:
@@ -186,7 +184,7 @@ class ModelConfig:
                         raise NotImplementedError("Customized transformer tokenizers not implemented.")
                         # tokenizer_config(self)
                     else:  # Customized models with customized tokenizer.
-                        assert word_max_length and emb_path and tokenizer_name and word_index_path, \
+                        assert emb_path and tokenizer_name and word_index_path, \
                             "Customized model requires word_max_length," \
                             "\n\t\temb_path,\n\t\t" \
                             "tokenizer_name,\n\t\t" \
@@ -249,17 +247,6 @@ class TaskConfig:
         self.model_config = model_config_dict
         self.data_config = data_config_dict
 
-        self.model = None
-        self.data = None
-
-        self.cache_folder = ".cache"
-
-        self.__post_init__()
-
-    def __post_init__(self):
-        self.model = ModelConfig(**self.model_config)
-        self.data = DataConfig(**self.data_config)
-
     def to_dict(self):
         out = copy.deepcopy(self.__dict__)
         del out['model']
@@ -268,7 +255,3 @@ class TaskConfig:
 
     def idx(self):
         return sha256(str(self.to_dict()).encode('utf-8')).hexdigest()
-
-
-if __name__ == "__main__":
-    mc = {"model_name": "roberta", "word_max_length": 1024, "n_labels": 2}

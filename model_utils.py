@@ -51,10 +51,13 @@ class TaskModel(nn.Module):
     def batch_eval(self, texts, labels, label_names):
         tokens = self.tokenizer(texts)
 
-        if "sent" in self.tokenizer.name:
-            token_ids = [[[self.word_index.get(word, 0) for word in sent] for sent in doc] for doc in tokens]
+        if self.tokenizer.name in ["spacy", "spacy-sent", "nltk", "nltk-sent"]:
+            if "sent" in self.tokenizer.name:
+                token_ids = [[[self.word_index.get(word, 0) for word in sent] for sent in doc] for doc in tokens]
+            else:
+                token_ids = [[self.word_index.get(word, 0) for word in doc] for doc in tokens]
         else:
-            token_ids = [[self.word_index.get(word, 0) for word in doc] for doc in tokens]
+            token_ids = tokens['input_ids']
 
         with torch.no_grad():
             _, preds = self.forward(token_ids)

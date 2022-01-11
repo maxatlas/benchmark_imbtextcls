@@ -4,24 +4,8 @@ import vars
 from dataset_utils import preprocess_texts
 from nltk.tokenize import sent_tokenize, word_tokenize
 
-from vars import (model_names,
-                  transformer_names,
-                  parameter_folder)
-
-
-def save_all_transformer_emb_layer():
-    from Config import ModelConfig
-    from model_utils import save_transformer_emb
-    names = [("bert", "bert-base-uncased"),
-           ("xlnet", "xlnet-base-cased"),
-           ("gpt2", "gpt2"),
-           ("roberta", "roberta-base")]
-    for model_name, pretrained_name in names[-1:]:
-        print("\n"+model_name)
-        mc = ModelConfig(model_name, 2, pretrained_model_name=pretrained_name)
-        model = main(mc)
-        save_transformer_emb(model, model_name)
-        print("Done.")
+from Config import ModelConfig
+from vars import (transformer_names,)
 
 
 class Tokenizer:
@@ -66,10 +50,10 @@ class Tokenizer:
         texts = preprocess_texts(texts)
         docs = None
         if self.name == "spacy":
-            docs = self.core.pipe(texts, n_process=2)
+            docs = self.core.pipe(texts, n_process=4, disable=["tok2vec", "transformer"])
             docs = [[tok.text for tok in doc] for doc in docs]
         elif self.name == "spacy-sent":
-            docs = self.core.pipe(texts, n_process=2)
+            docs = self.core.pipe(texts, n_process=4, disable=["tok2vec", "transformer"])
             docs = [[[tok.text for tok in sent] for sent in doc.sents] for doc in docs]
         elif self.name == "nltk-sent":
             docs = [[word_tokenize(sent) for sent in sent_tokenize(doc)] for doc in texts]
@@ -86,7 +70,7 @@ class Tokenizer:
             return vars.cutoff+2
 
 
-def main(config):
+def main(config: ModelConfig):
     Model = None
     config = config()
 

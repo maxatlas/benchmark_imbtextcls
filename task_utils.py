@@ -16,7 +16,7 @@ def metrics_frame(preds, labels, label_names):
     fpr, tpr, thresholds = roc_curve(labels, preds, pos_label=1)
     auc_res = auc(fpr, tpr)
     cr = classification_report(labels, preds,)
-                               # labels=list(range(len(label_names))), target_names=label_names)
+    # labels=list(range(len(label_names))), target_names=label_names)
 
     model_metrics = {
         "Precision, Micro": precision_micro,

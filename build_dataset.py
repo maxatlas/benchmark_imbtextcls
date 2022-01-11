@@ -15,20 +15,16 @@ import pandas as pd
 class TaskDataset:
     def __init__(self, data: DataFrame, label_feature: ClassLabel, config: DataConfig):
         self.info = config
-        self.data = data
+        self.data = pd.concat([data[text_field] for text_field in config.text_fields])
+        self.labels = data[config.label_field]
         self.label_feature = label_feature
 
     def __len__(self):
         return len(self.data)
 
     def __getitem__(self, i):
-        row = self.data.iloc[i]
-
-        label = row[self.info.label_field]
-        if type(label) is float:
-            label = int(label > 0.5)
-        data = row.loc[self.info.text_fields]
-        data = "\n".join(data)
+        data = self.data.iloc[i]
+        label = self.labels.iloc[i]
 
         return data, label
 

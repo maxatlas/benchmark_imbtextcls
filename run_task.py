@@ -3,16 +3,20 @@ import os
 import torch
 import build_model
 import build_dataset
+import hashlib
 
 from vars import (cache_folder,
                   results_folder)
 from tqdm import tqdm
-from Config import (TaskConfig)
+from Config import (TaskConfig,
+                    DataConfig,
+                    ModelConfig)
 from torch.utils.data import DataLoader
 
 from datetime import datetime
 from time import time
 from task_utils import metrics_frame
+from dataset_utils import get_max_lengths
 
 
 def save_result(task: TaskConfig, results: dict):
@@ -48,52 +52,68 @@ def save_result(task: TaskConfig, results: dict):
         dill.dump(res, open(filename, "wb"))
 
 
-def load_cache(card):
-    filename = "%s/%s" % (cache_folder, card.idx())
+def load_cache(config: dict):
+    idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
+
+    filename = "%s/%s" % (cache_folder, idx)
     try:
         return dill.load(open(filename, "rb"))
     except FileNotFoundError:
         return None
 
 
-def cache(card, data):
-    filename = "%s/%s" % (cache_folder, card.idx())
+def cache(config: dict, data):
+    idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
+
+    filename = "%s/%s" % (cache_folder, idx)
     try:
         dill.dump(data, open(filename, 'wb'))
     except FileNotFoundError:
         os.mkdir(cache_folder)
 
 
-def main(task: TaskConfig):
-    print("Task running with: \n\t\t dataset %s" % task.data.huggingface_dataset_name)
-    print("\t\t model %s" % task.model.model_name)
+def main(task: dict):
+    data_config, model_config = task["data_config_dict"], task["model_config_dict"]
 
-    model_card = task.model
-    data_card = task.data
+    print("Task running with: \n\t\t dataset %s" % data_config["huggingface_dataset_name"])
+    print("\t\t model %s" % model_config['model_name'])
 
-    model_card.device = task.device
-    data_card.test = task.test
-    print(str(task.model.to_dict()))
+    model_config["device"] = task["device"]
+    data_config["test"] = task["test"]
+    print(str(model_config))
 
-    model = load_cache(model_card)
-    data = load_cache(data_card)
+    model = load_cache(model_config)
+    data = load_cache(data_config)
+
+    print("Creating config files for dataset and model ...")
+    data_card = DataConfig(**data_config)
+
+    model_config["num_labels"] = data[0].label_feature.num_classes
+    word_max_length, sent_max_length = get_max_lengths(data[0].data)
+    if not word_max_length:
+        word_max_length = sent_max_length
+    model_config["word_max_length"] = word_max_length
+    model_card = ModelConfig(**model_config)
 
     print("Loading data ...")
     if not data:
         data = build_dataset.main(data_card)
-        cache(data_card, data)
+        cache(data_config, data)
+
     print("Loading model ...")
     if not model:
-        model_card.num_labels = data[0].label_feature.num_classes
+
         model = build_model.main(model_card)
-        cache(model_card, model)
+        cache(model_config, model)
+
+    task = TaskConfig(**task)
 
     train_tds, test_tds, val_tds = data
     train_dl = DataLoader(train_tds, batch_size=task.batch_size, shuffle=True)
     test_dl = DataLoader(test_tds, batch_size=task.batch_size, shuffle=True)
     # val_dl = DataLoader(val_tds, batch_size=task.batch_size, shuffle=True)
 
-    optimizer = task.optimizer(model.parameters(), lr=task.model.lr)
+    optimizer = task.optimizer(model.parameters(), lr=model_card.lr)
 
     model.train()
     print("\t Training ...")
@@ -107,7 +127,7 @@ def main(task: TaskConfig):
             texts, labels = batch
             labels = labels.tolist()
             loss = model.batch_train(texts, labels, train_tds.label_feature.names, task.loss_func)
-            if task.model.model_name == "han":
+            if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
             loss.backward()
             optimizer.step()
@@ -124,11 +144,9 @@ def main(task: TaskConfig):
     for batch in tqdm(test_dl, desc="Iteration"):
         texts, labels = batch
         labels = labels.tolist()
-
-        if task.model.model_name == "han":
+        if model_card.model_name == "han":
             model._init_hidden_state(len(texts))
         preds = model.batch_eval(texts, labels, train_tds.label_feature.names)
-
         preds_eval.extend(preds)
         labels_eval.extend(labels)
 
@@ -139,7 +157,7 @@ def main(task: TaskConfig):
     res['seconds_avg_epoch'] = clocks/task.epoch
     if not task.test:
         save_result(task, res)
-        model.save_pretrained(save_directory="models/%s/%s" % (task.model.model_name,
+        model.save_pretrained(save_directory="models/%s/%s" % (model_card.model_name,
                                                                              datetime.today()),
                                             save_config=True, state_dict=model.state_dict())
     return res
