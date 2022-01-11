@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 
 from datetime import datetime
 from time import time
-from utils import metrics_frame
+from task_utils import metrics_frame
 
 
 def save_result(task: TaskConfig, results: dict):
@@ -49,6 +49,8 @@ def load_cache(card):
 
 
 def cache(card, data):
+    if cache_folder not in os.listdir():
+        os.mkdir(cache_folder)
     filename = "%s/%s" % (cache_folder, card.idx())
     dill.dump(data, open(filename, 'wb'))
 
