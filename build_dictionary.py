@@ -1,7 +1,9 @@
 import dill
 import spacy
-import numpy
-
+import numpy as np
+import build_model
+import os
+import vars
 from time import time
 from collections import defaultdict
 from vars import datasets_meta, parameter_folder
@@ -9,6 +11,99 @@ from nltk.tokenize import word_tokenize
 from datasets import load_dataset
 
 from dataset_utils import preprocess_texts, preprocess_text
+
+from vars import cutoff, kvtypes
+
+import gensim.downloader as api
+
+api.BASE_DIR = vars.hpc_folder+".cache/gensim-data/"
+api.base_dir = vars.hpc_folder+".cache/gensim-data/"
+api._create_base_dir()
+
+os.environ['TRANSFORMERS_CACHE'] = vars.hf_cache_folder+"/modules"
+os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+"/datasets"
+
+
+def cache_needed_data():
+    print(api.base_dir)
+    for meta in datasets_meta:
+        load_dataset(*meta['huggingface_dataset_name'])
+    for name in kvtypes.values():
+        api.load(name)
+
+
+def save_all_transformer_emb_layer():
+    from Config import ModelConfig
+    from model_utils import save_transformer_emb
+    names = [("bert", "bert-base-uncased"),
+           ("xlnet", "xlnet-base-cased"),
+           ("gpt2", "gpt2"),
+           ("roberta", "roberta-base")]
+    for model_name, pretrained_name in names[-1:]:
+        print("\n"+model_name)
+        mc = ModelConfig(model_name, 2, pretrained_model_name=pretrained_name)
+        model = build_model.main(mc)
+        save_transformer_emb(model, model_name)
+        print("Done.")
+
+
+def build_emb_layers(count_dict_path):
+    import torch
+    import torch.nn as nn
+    from gensim.models.keyedvectors import KeyedVectors
+
+    def get_kv(kvtype: str):
+        """
+        :param kvtype: "glove"/"word2vec"/"fasttext"
+        :return: the weight matrix as KeyVectors
+        """
+        from vars import kvtypes
+        kv = api.load(kvtypes.get(kvtype))
+        return kv
+
+    count_dict = dill.load(open(count_dict_path, "rb"))
+
+    def build_emb_layer(tknwords: set, kv: KeyedVectors, trainable=1):
+        def _create_weight_matrix(start_i):
+            wm = np.zeros((num_emb, emb_dim))
+            for i, word in enumerate(tknwords[start_i:]):
+                try:
+                    wm[i + start_i] = kv[word]
+                except KeyError:
+                    wm[i + start_i] = np.random.normal(scale=0.6, size=(emb_dim,))
+                    unfound_words.add(word)
+            wm = torch.tensor(wm)
+            return wm
+
+        unfound_words = set()
+        num_emb, emb_dim = len(tknwords), len(kv['the'])
+        word_start_i = 2
+        emb_layer = nn.Embedding(num_emb, emb_dim)
+        emb_layer.load_state_dict({'weight': _create_weight_matrix(word_start_i)})
+        if not trainable: emb_layer.weight.requires_grad = False
+
+        return emb_layer, unfound_words
+
+    tkndata = [(key, count_dict[key]) for key in count_dict]
+    tkndata = sorted(tkndata, key=lambda x: x[1], reverse=True)[:cutoff]
+    tkndata = [key for (key, count) in tkndata]
+    tkndata = ["[PAD]", "[UNK]"] + tkndata
+
+    word2index = {word: i for i, word in enumerate(tkndata)}
+
+    print("word2index length: %i" % len(word2index))
+    dill.dump(word2index, open("%s/word_index" % parameter_folder, "wb"))
+
+    print("vocab size: %i" % len(tkndata))
+
+    for kvtype in kvtypes:
+        print("building embedding layer for %s ..." % kvtype)
+        emb_layer, unfound_words = build_emb_layer(set(tkndata), get_kv(kvtype))
+        dill.dump(unfound_words, open("%s/unfound_words_%s" % (parameter_folder, kvtype), "wb"))
+        torch.save(emb_layer.state_dict(), "%s/emb_layer_%s" % (parameter_folder, kvtype))
+        print("Done.")
+
+    print("Done for all kvtypes")
 
 
 def nltk_run():
@@ -27,7 +122,7 @@ def nltk_run():
                 print("\t\t" + field)
                 docs = list(df[field])
                 for doc in docs:
-                    if type(doc) is numpy.ndarray:
+                    if type(doc) is np.ndarray:
                         doc = "\n".join(doc)
                     doc = preprocess_text(doc)
                     tokens = word_tokenize(doc)
@@ -41,8 +136,8 @@ def nltk_run():
 def spacy_run():
     nlp = spacy.load("en_core_web_sm")
     tokens_count = defaultdict(int)
-    # tokens_count = dill.load(open("parameters/word_count_spacy", "rb"))
-    for i, meta in enumerate(datasets_meta[:]):
+    tokens_count = dill.load(open("%s/word_count_spacy"%vars.parameter_folder, "rb"))
+    for i, meta in enumerate(datasets_meta[16:]):
         if meta['huggingface_dataset_name'] == ["lex_glue", "ecthr_b"]:
             continue
 
@@ -78,5 +173,9 @@ def spacy_run():
 
 
 if __name__ == "__main__":
+    # cache_needed_data()
     spacy_run()
     nltk_run()
+    build_emb_layers("%s/word_count_nltk")
+    build_emb_layers("%s/word_count_spacy")
+    save_all_transformer_emb_layer()

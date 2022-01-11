@@ -34,9 +34,8 @@ class Model(TaskModel):
     def _get_output_size(self):
         def _get_size(length, kernel_size):
 
-            out = math.floor((length + 2 *
-                        self.padding - self.dilation * (kernel_size - 1)
-                        - 1) / self.stride + 1)
+            out = math.floor((length + 2 * self.padding - self.dilation * (kernel_size - 1)
+                              - 1) / self.stride + 1)
             return out
 
         output_size = [_get_size(self.word_max_length, kernel_size)
@@ -49,7 +48,6 @@ class Model(TaskModel):
 
     def forward(self, input_ids):
         input_ids = pad_seq_to_length(input_ids, self.config.word_max_length).to(self.config.device)
-
         embeds = self.emb(input_ids)
         # (N, L, D) -> (N, D, L)
         embeds = embeds.permute(0, 2, 1)
@@ -65,5 +63,4 @@ class Model(TaskModel):
 
         logits = self.cls(out)
         preds = torch.argmax(logits, dim=1)
-
         return logits, preds

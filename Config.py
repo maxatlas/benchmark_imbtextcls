@@ -1,4 +1,5 @@
 import copy
+import vars
 
 from hashlib import sha256
 from vars import (model_names,
@@ -102,7 +103,7 @@ class ModelConfig:
                  device=None,
                  word_max_length=None,
                  hidden_size=100,
-                 word_index_path="params/word_index",
+                 word_index_path="%s/word_index" % parameter_folder,
                  emb_path=None,
                  n_layers=1,
                  activation_function="gelu",
@@ -228,8 +229,8 @@ class ModelConfig:
 
 class TaskConfig:
     def __init__(self,
-                 data_config_dict: dict,
-                 model_config_dict: dict,
+                 data_config: dict,
+                 model_config: dict,
                  batch_size: int,
                  loss_func,
                  optimizer,
@@ -244,14 +245,16 @@ class TaskConfig:
         self.test = test
         self.optimizer = optimizer
 
-        self.model_config = model_config_dict
-        self.data_config = data_config_dict
+        self.model_config = model_config
+        self.data_config = data_config
+
+    def __call__(self):
+        self.model = ModelConfig(**self.model_config)
+        self.data = DataConfig(**self.data_config)
+        return self
 
     def to_dict(self):
-        out = copy.deepcopy(self.__dict__)
-        del out['model']
-        del out['data']
-        return out
+        return self.__dict__
 
     def idx(self):
         return sha256(str(self.to_dict()).encode('utf-8')).hexdigest()

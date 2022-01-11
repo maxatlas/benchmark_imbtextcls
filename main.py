@@ -2,47 +2,62 @@
 check max word length and sent length, configure model word max length accordingly properly
 """
 
-from Config import ModelConfig, DataConfig
+import vars
+import run_task
+import argparse
+import taskcards
 
-import build_model
-import build_dataset
-
-
+from Config import TaskConfig
 
 
 if __name__ == "__main__":
-    from vars import datasets_meta
-    from torch.nn import BCEWithLogitsLoss  # CrossEntropyLoss, MSELoss,
-    dataset_i = 3
-    model_name = "roberta"
-    pretrained_model_name = "roberta-base"
-    emb_path = ""
-    max_length = 0
-    test = None
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--dataset_i',
+                        '-i',
+                        default=None,
+                        required=True,
+                        type=int,
+                        help="nth dataset from vars.datasets_meta")
+    parser.add_argument("--device",
+                        default="cuda:0",
+                        type=str,
+                        help="which device to run on: cpu/cuda:n")
+    parser.add_argument('--scenario',
+                        '-s',
+                        type=int,
+                        default=0,
+                        help="1. Pretrained model; "
+                             "2. Customized model with pretrained tokenizer; "
+                             "3. Customized model with customized tokenizer.")
+    parser.add_argument('--epoch',
+                        '-e',
+                        type=int,
+                        default=3)
 
-    dc = DataConfig(*datasets_meta[dataset_i].values(), test=test)
-    train_df, _, _ = build_dataset.main(dc)
+    parser.add_argument("--test",
+                        '-t',
+                        default=0,
+                        type=int)
 
-    n_labels = train_df.label_feature.num_classes
+    args = parser.parse_args()
+    dc = vars.datasets_meta[args.dataset_i]
 
-    mc = ModelConfig(model_name, n_labels,
-                     pretrained_model_name=pretrained_model_name)
-                     # "bert",
-                     # pretrained_tokenizer_name="bert-base-uncased",
-                     # emb_path="params/emb_layer_bert",
-                     # hidden_size=20,
-                     # word_max_length=100)
+    print("Pretrained models ...")
+    tasks = []
+    if args.scenario == 1:
+        tasks = taskcards.scenario_1(dc, args)
+    elif args.scenario == 2:
+        tasks = taskcards.scenario_2(dc, args)
+    elif args.scenario == 3:
+        tasks = taskcards.scenario_3(dc, args)
+    else:
+        tasks = []
+        tasks += taskcards.scenario_1(dc, args)
+        tasks += taskcards.scenario_2(dc, args)
+        tasks += taskcards.scenario_2(dc, args)
 
-    model = build_model.main(mc)
-    # weight = build_model.save_transformer_emb(model, model_name)
-
-    texts = list(train_df.data[datasets_meta[dataset_i]['text_fields'][0]][:3])
-    labels = list(train_df.data[datasets_meta[dataset_i]['label_field']][:3])
-
-    loss = model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss())
-    res = model.batch_eval(texts, labels, train_df.label_feature.names)
-
-    print(loss)
-    print(res)
-    # params = dict(model.named_parameters())
-    # params.keys()
+    for task in tasks:
+        try:
+            run_task.main(TaskConfig(**task))
+        except Exception as e:
+            print(e)

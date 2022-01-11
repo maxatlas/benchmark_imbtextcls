@@ -4,6 +4,11 @@ from torch.nn import BCEWithLogitsLoss  # CrossEntropyLoss, MSELoss,
 
 import build_model
 import build_dataset
+import vars
+import os
+
+os.environ['TRANSFORMERS_CACHE'] = vars.hf_cache_folder+"/modules"
+os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+"/datasets"
 
 
 def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenizer_name):
@@ -79,8 +84,8 @@ if __name__ == "__main__":
     mc = ModelConfig(model_name, n_labels,
                      tokenizer_name=tokenizer_name,
                      word_max_length=50,
-                     emb_path="params/emb_layer_glove",
-                     word_index_path="params/word_index"
+                     emb_path="%s/emb_layer_glove" % vars.parameter_folder,
+                     word_index_path="%s/word_index" % vars.parameter_folder,
                      )
     model = build_model.main(mc)
 

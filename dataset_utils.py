@@ -149,7 +149,7 @@ def set_imbalance_by_cls(no_by_cls: dict, tolerance, threshold, cls_ratio_to_imb
     return out
 
 
-def get_max_lengths(input_ids):
+def get_max_lengths(input_ids: list):
     word_length_list = []
     sent_length_list = []
 

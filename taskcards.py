@@ -1,40 +1,92 @@
 import torch
 import vars
-import argparse
 
 from torch.nn import BCEWithLogitsLoss
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--dataset_i',
-                    default=None,
-                    required=True,
-                    type=int,
-                    help="nth dataset from vars.datasets_meta")
-parser.add_argument("--device",
-                    default="cuda:0",
-                    type=str,
-                    help="which device to run on: cpu/cuda:n")
 
-args = parser.parse_args()
-dc = vars.datasets_meta[args.dataset_i]
+def scenario_1(dc, args):
+    task_cards = []
+    for model, pretrain in list(zip(vars.transformer_names,
+                                    vars.transformer_pretrain)):
+        mc = {
+            "model_name": model,
+            "pretrained_model_name": pretrain,
+        }
+        tc = {
+            "data_config": dc,
+            "model_config": mc,
+            "batch_size": 100,
+            "loss_func": BCEWithLogitsLoss(),
+            "device": args.device,
+            "optimizer": torch.optim.AdamW,
+            "test": 3 if args.test else None,
+        }
 
-print("Pretrained models ...")
+        task_cards.append(tc)
 
-task_cards = []
+    return task_cards
 
-for model, pretrain in list(zip(vars.transformer_names,
-                                vars.transformer_pretrain)):
-    mc = {
-        "model_name": model,
-        "pretrained_model_name": pretrain,
-    }
-    tc = {
-        "data_config_dict": dc,
-        "model_config_dict": mc,
-        "batch_size": 100,
-        "loss_func": BCEWithLogitsLoss(),
-        "device": args.device,
-        "optimizer": torch.optim.AdamW,
-    }
 
-    task_cards.append(tc)
+def scenario_2(dc, args):
+    task_cards = []
+
+    for model in vars.model_names[4:-1]:
+        for pretrain in vars.transformer_pretrain:
+            mc = {
+                "model_name": model,
+                "pretrained_tokenizer_name": pretrain,
+            }
+            tc = {
+                "data_config": dc,
+                "model_config": mc,
+                "batch_size": 100,
+                "loss_func": BCEWithLogitsLoss(),
+                "device": args.device,
+                "optimizer": torch.optim.AdamW,
+                "test": 3 if args.test else None,
+            }
+            task_cards.append(tc)
+
+    for model, pretrain in list(zip(vars.transformer_names,
+                                    vars.transformer_pretrain)):
+        mc = {
+            "model_name": model,
+            "pretrained_tokenizer_name": pretrain,
+        }
+        tc = {
+            "data_config": dc,
+            "model_config": mc,
+            "batch_size": 100,
+            "loss_func": BCEWithLogitsLoss(),
+            "device": args.device,
+            "optimizer": torch.optim.AdamW,
+            "test": 3 if args.test else None,
+        }
+
+        task_cards.append(tc)
+
+    return task_cards
+
+
+def scenario_3(dc, args):
+    task_cards = []
+    for model in vars.customized_model_names:
+        for tok in vars.customized_tokenizer_names:
+            for emb_path in ["glove", "fasttext", "word2vec"]:
+                mc = {
+                    "model_name": model,
+                    "tokenizer_name": tok,
+                    "emb_path": "%s/%s" % (vars.parameter_folder, emb_path)
+                }
+                tc = {
+                    "data_config": dc,
+                    "model_config": mc,
+                    "batch_size": 100,
+                    "loss_func": BCEWithLogitsLoss(),
+                    "device": args.device,
+                    "optimizer": torch.optim.AdamW,
+                    "test": 3 if args.test else None,
+                }
+                task_cards.append(tc)
+
+    return task_cards

@@ -1,10 +1,8 @@
 import torch
 import run_task
-import vars
-import os
 from vars import *
 from torch.nn import BCEWithLogitsLoss
-
+from Config import TaskConfig
 # os.environ['TRANSFORMERS_CACHE'] = vars.hf_cache_folder+"/modules"
 # os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+'/datasets'
 
@@ -12,11 +10,11 @@ from torch.nn import BCEWithLogitsLoss
 dataset_i = 1
 dd = datasets_meta[dataset_i]
 
-model_name = "roberta"
-pretrained_tokenizer_name = "roberta-base"
+model_name = "cnn"
+pretrained_tokenizer_name = "bert-base-cased"
 tokenizer_name = None
 pretrained_model_name = ""
-emb_path = "params/emb_layer_glove"
+emb_path = "%s/emb_layer_glove" % parameter_folder
 
 md = {
     "model_name": model_name,
@@ -28,15 +26,15 @@ md = {
 
 optimizer = torch.optim.AdamW
 tc = {
-    "model_config_dict": md,
-    "data_config_dict": dd,
+    "model_config": md,
+    "data_config": dd,
     "batch_size": 100,
     "loss_func": BCEWithLogitsLoss(),
     "optimizer": optimizer,
-    "device": "cuda:0",
+    "device": "cpu",
     "test": 3,
 }
 
-
-res = run_task.main(tc)
+task = TaskConfig(**tc)
+res = run_task.main(task)
 print(res)

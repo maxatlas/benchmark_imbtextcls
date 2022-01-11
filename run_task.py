@@ -5,15 +5,15 @@ import build_model
 import build_dataset
 import hashlib
 
+import vars
 from vars import (cache_folder,
                   results_folder)
 from tqdm import tqdm
 from Config import (TaskConfig,
-                    DataConfig,
-                    ModelConfig)
+                    DataConfig,)
 from torch.utils.data import DataLoader
 
-from datetime import datetime
+
 from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
@@ -28,25 +28,26 @@ def save_result(task: TaskConfig, results: dict):
     :param results:
     :return:
     """
-    print(task.idx())
     folder = "_".join(task.data.huggingface_dataset_name)\
                   + "_balance_strategy_%s" % task.data.balance_strategy
     folder = "%s/%s" % (results_folder, folder)
     try:
         os.listdir(folder)
     except FileNotFoundError:
-        os.mkdir(folder)
+        os.makedirs(folder, exist_ok=True)
 
-    filename = "%s/%s" % (folder, task.model.model_name)
-    res = [{
-        "model": task.model_config,
-        "result": results,
-        "task": task.to_dict()
-    }]
+    filename = "%s/%s" % (folder, task.model_config["model_name"])
+    res = {
+        task.idx(): {
+            "model": task.model_config,
+            "result": results,
+            "task": task.to_dict()
+        }
+    }
 
     try:
         ress = dill.load(open(filename, "rb"))
-        ress += res
+        ress.update(res)
         dill.dump(ress, open(filename, "wb"))
     except FileNotFoundError:
         dill.dump(res, open(filename, "wb"))
@@ -69,44 +70,41 @@ def cache(config: dict, data):
     try:
         dill.dump(data, open(filename, 'wb'))
     except FileNotFoundError:
-        os.mkdir(cache_folder)
+        os.makedirs(cache_folder, exist_ok=True)
 
 
-def main(task: dict):
-    data_config, model_config = task["data_config_dict"], task["model_config_dict"]
+def main(task: TaskConfig):
 
-    print("Task running with: \n\t\t dataset %s" % data_config["huggingface_dataset_name"])
-    print("\t\t model %s" % model_config['model_name'])
+    print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
+    print("\t\t model %s" % task.model_config['model_name'])
 
-    model_config["device"] = task["device"]
-    data_config["test"] = task["test"]
-    print(str(model_config))
+    task.model_config["device"] = task.device
+    task.data_config["test"] = task.test
+    print(str(task.model_config))
 
-    model = load_cache(model_config)
-    data = load_cache(data_config)
 
-    print("Creating config files for dataset and model ...")
-    data_card = DataConfig(**data_config)
+    data_card = DataConfig(**task.data_config)
 
-    model_config["num_labels"] = data[0].label_feature.num_classes
+    print("Loading data ...")
+    data = load_cache(task.data_config)
+
+    if not data:
+        data = build_dataset.main(data_card)
+        cache(task.data_config, data)
+
+    print("Loading model ...")
+    model = load_cache(task.model_config)
+
+    task.model_config["num_labels"] = data[0].label_feature.num_classes
     word_max_length, sent_max_length = get_max_lengths(data[0].data)
     if not word_max_length:
         word_max_length = sent_max_length
-    model_config["word_max_length"] = word_max_length
-    model_card = ModelConfig(**model_config)
+    task.model_config["word_max_length"] = word_max_length
+    model_card = task().model
 
-    print("Loading data ...")
-    if not data:
-        data = build_dataset.main(data_card)
-        cache(data_config, data)
-
-    print("Loading model ...")
     if not model:
-
         model = build_model.main(model_card)
-        cache(model_config, model)
-
-    task = TaskConfig(**task)
+        cache(task.model_config, model)
 
     train_tds, test_tds, val_tds = data
     train_dl = DataLoader(train_tds, batch_size=task.batch_size, shuffle=True)
@@ -155,9 +153,19 @@ def main(task: dict):
 
     res = metrics_frame(preds_eval, labels_eval, train_tds.label_feature.names)
     res['seconds_avg_epoch'] = clocks/task.epoch
+
     if not task.test:
         save_result(task, res)
-        model.save_pretrained(save_directory="models/%s/%s" % (model_card.model_name,
-                                                                             datetime.today()),
-                                            save_config=True, state_dict=model.state_dict())
+        print("\t Result saved ...")
+
+        train_folder = "%s/%s" % (vars.trained_model_folder,
+                                        task.model.model_name)
+
+        os.makedirs(train_folder, exist_ok=True)
+
+        torch.save(model, "%s/%s" % (train_folder,
+                                     task.idx()))
+        print("\t Model saved ...")
+
+    print(res)
     return res

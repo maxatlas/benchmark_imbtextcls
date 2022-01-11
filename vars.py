@@ -1,11 +1,21 @@
-parameter_folder = "params"
-results_folder = "results"
-cache_folder = ".cache"
+hpc_folder = "/scratch/itee/uqclyu1/"
+current = hpc_folder
+current = ""
+parameter_folder = "%sparams" % current
+results_folder = "%sresults" % current
+cache_folder = "%s.cache/exp" % current
+trained_model_folder = "%strained" % current
+
+hf_cache_folder = "%s/.cache/huggingface" % current
 
 model_names = ["bert", "xlnet", "roberta", "gpt2", "lstm",
-               "lstmattn", "cnn", "rcnn", "han", "mlp"]
+               "lstmattn", "cnn", "rcnn", "mlp", "han"]
 transformer_names = model_names[:4]
+transformer_pretrain = \
+    ["bert-base-uncased", "xlnet-base-cased", "roberta-base", "gpt2"]
 customized_model_names = model_names[4:]
+
+customized_tokenizer_names = ["nltk", "spacy"]
 
 cutoff = 400_000
 
