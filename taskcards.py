@@ -20,6 +20,7 @@ def scenario_1(dc, args):
             "device": args.device,
             "optimizer": torch.optim.AdamW,
             "test": 3 if args.test else None,
+            "epoch": args.epoch,
         }
 
         task_cards.append(tc)
@@ -44,6 +45,7 @@ def scenario_2(dc, args):
                 "device": args.device,
                 "optimizer": torch.optim.AdamW,
                 "test": 3 if args.test else None,
+                "epoch": args.epoch,
             }
             task_cards.append(tc)
 
@@ -61,6 +63,7 @@ def scenario_2(dc, args):
             "device": args.device,
             "optimizer": torch.optim.AdamW,
             "test": 3 if args.test else None,
+            "epoch": args.epoch,
         }
 
         task_cards.append(tc)
@@ -76,7 +79,7 @@ def scenario_3(dc, args):
                 mc = {
                     "model_name": model,
                     "tokenizer_name": tok,
-                    "emb_path": "%s/%s" % (vars.parameter_folder, emb_path)
+                    "emb_path": "%s/emb_layer_%s" % (vars.parameter_folder, emb_path)
                 }
                 tc = {
                     "data_config": dc,
@@ -86,6 +89,7 @@ def scenario_3(dc, args):
                     "device": args.device,
                     "optimizer": torch.optim.AdamW,
                     "test": 3 if args.test else None,
+                    "epoch": args.epoch,
                 }
                 task_cards.append(tc)
 
