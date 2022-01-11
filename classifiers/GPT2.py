@@ -14,7 +14,7 @@ class Model(GPT2PreTrainedModel):
         self.tokenizer = None
 
         if 'device' not in config.to_dict().keys():
-            self.config.device = "cuda:0"
+            self.config.device = "cpu"
 
         self.num_labels = config.num_labels
 

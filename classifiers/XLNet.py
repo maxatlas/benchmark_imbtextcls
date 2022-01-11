@@ -17,7 +17,7 @@ class Model(XLNetPreTrainedModel):
         self.config = config
 
         if 'device' not in config.to_dict().keys():
-            self.config.device = "cuda:0"
+            self.config.device = "cpu"
 
         self.tokenizer = None
 

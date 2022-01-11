@@ -16,7 +16,7 @@ class Model(RobertaPreTrainedModel):
         self.config = config
 
         if 'device' not in config.to_dict().keys():
-            self.config.device = "cuda:0"
+            self.config.device = "cpu"
 
         self.roberta = RobertaModel(config, add_pooling_layer=False).to(self.config.device)
         classifier_dropout = (
