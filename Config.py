@@ -99,7 +99,7 @@ class DataConfig:
 
 class ModelConfig:
     def __init__(self, model_name,
-                 n_labels,
+                 n_labels=None,
                  tokenizer_name=None,
                  device=None,
                  word_max_length=None,
@@ -126,7 +126,7 @@ class ModelConfig:
 
         self.lr = lr
 
-        assert n_labels, "Must specify number of labels (n_labels)."
+        # assert n_labels, "Must specify number of labels (n_labels)."
         assert self.model_name in model_names, \
             "Model name should be any of the following:" \
             "\n\t\tBert\n\t\tXLNet" \

@@ -16,6 +16,14 @@ from task_utils import metrics_frame
 
 
 def save_result(task: TaskConfig, results: dict):
+    """
+    Under folder of dataset name and balance strategy
+    filename is model name _task.idx()
+    append, if filename exists
+    :param task:
+    :param results:
+    :return:
+    """
     print(task.idx())
     folder = "_".join(task.data.huggingface_dataset_name)\
                   + "_balance_strategy_%s" % task.data.balance_strategy
@@ -25,7 +33,7 @@ def save_result(task: TaskConfig, results: dict):
     except FileNotFoundError:
         os.mkdir(folder)
 
-    filename = "%s/%s_%s" % (folder, task.model.model_name, task.idx())
+    filename = "%s/%s" % (folder, task.model.model_name)
     res = [{
         "model": task.model_config,
         "result": results,
@@ -49,10 +57,11 @@ def load_cache(card):
 
 
 def cache(card, data):
-    if cache_folder not in os.listdir():
-        os.mkdir(cache_folder)
     filename = "%s/%s" % (cache_folder, card.idx())
-    dill.dump(data, open(filename, 'wb'))
+    try:
+        dill.dump(data, open(filename, 'wb'))
+    except FileNotFoundError:
+        os.mkdir(cache_folder)
 
 
 def main(task: TaskConfig):
@@ -69,12 +78,15 @@ def main(task: TaskConfig):
     model = load_cache(model_card)
     data = load_cache(data_card)
 
-    if not model:
-        model = build_model.main(model_card)
-        cache(model_card, model)
+    print("Loading data ...")
     if not data:
         data = build_dataset.main(data_card)
         cache(data_card, data)
+    print("Loading model ...")
+    if not model:
+        model_card.num_labels = data[0].label_feature.num_classes
+        model = build_model.main(model_card)
+        cache(model_card, model)
 
     train_tds, test_tds, val_tds = data
     train_dl = DataLoader(train_tds, batch_size=task.batch_size, shuffle=True)

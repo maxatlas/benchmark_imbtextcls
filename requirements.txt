@@ -17,6 +17,7 @@ en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_
 filelock==3.4.1
 frozenlist==1.2.0
 fsspec==2021.11.1
+gensim==4.1.2
 huggingface-hub==0.2.1
 idna==3.3
 idna-ssl==1.1.0
