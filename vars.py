@@ -1,12 +1,12 @@
 hpc_folder = "/scratch/itee/uqclyu1/"
 current = hpc_folder
-current = ""
+# current = ""
 parameter_folder = "%sparams" % current
 results_folder = "%sresults" % current
 cache_folder = "%s.cache/exp" % current
 trained_model_folder = "%strained" % current
 
-hf_cache_folder = "%s/.cache/huggingface" % current
+hf_cache_folder = "%s.cache/huggingface" % current
 
 model_names = ["bert", "xlnet", "roberta", "gpt2", "lstm",
                "lstmattn", "cnn", "rcnn", "mlp", "han"]

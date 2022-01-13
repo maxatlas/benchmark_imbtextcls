@@ -1,4 +1,4 @@
-import dill
+import pickle
 import os
 import torch
 import build_model
@@ -17,6 +17,8 @@ from torch.utils.data import DataLoader
 from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
+
+torch.cuda.empty_cache()
 
 
 def save_result(task: TaskConfig, results: dict):
@@ -46,11 +48,11 @@ def save_result(task: TaskConfig, results: dict):
     }
 
     try:
-        ress = dill.load(open(filename, "rb"))
+        ress = pickle.load(open(filename, "rb"))
         ress.update(res)
-        dill.dump(ress, open(filename, "wb"))
+        pickle.dump(ress, open(filename, "wb"))
     except FileNotFoundError:
-        dill.dump(res, open(filename, "wb"))
+        pickle.dump(res, open(filename, "wb"))
 
 
 def load_cache(config: dict):
@@ -58,7 +60,7 @@ def load_cache(config: dict):
 
     filename = "%s/%s" % (cache_folder, idx)
     try:
-        return dill.load(open(filename, "rb"))
+        return pickle.load(open(filename, "rb"))
     except FileNotFoundError:
         return None
 
@@ -68,13 +70,13 @@ def cache(config: dict, data):
 
     filename = "%s/%s" % (cache_folder, idx)
     try:
-        dill.dump(data, open(filename, 'wb'))
+        pickle.dump(data, open(filename, 'wb'))
     except FileNotFoundError:
         os.makedirs(cache_folder, exist_ok=True)
 
 
 def main(task: TaskConfig):
-
+    print(task.epoch)
     print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
     print("\t\t model %s" % task.model_config['model_name'])
 
@@ -91,11 +93,11 @@ def main(task: TaskConfig):
     if not data:
         data = build_dataset.main(data_card)
         cache(task.data_config, data)
-
     print("Loading model ...")
     model = load_cache(task.model_config)
 
     task.model_config["num_labels"] = data[0].label_feature.num_classes
+
     word_max_length, sent_max_length = get_max_lengths(data[0].data)
     if not word_max_length:
         word_max_length = sent_max_length
@@ -113,13 +115,16 @@ def main(task: TaskConfig):
 
     optimizer = task.optimizer(model.parameters(), lr=model_card.lr)
 
-    model.train()
     print("\t Training ...")
 
     clocks = 0
 
+    preds_eval, labels_eval = [], []
+
     for i in range(task.epoch):
         print("\t epoch %s" % str(i))
+
+        model.train()
         clock_start = time()
         for batch in tqdm(train_dl, desc="Iteration"):
             texts, labels = batch
@@ -134,38 +139,36 @@ def main(task: TaskConfig):
         print("Epoch %i finished." % i)
         clocks += time() - clock_start
 
+        print("\t Evaluating ...")
+        model.eval()
 
-    print("\t Evaluating ...")
-    model.eval()
-    preds_eval, labels_eval = [], []
+        for batch in tqdm(test_dl, desc="Iteration"):
+            texts, labels = batch
+            labels = labels.tolist()
+            if model_card.model_name == "han":
+                model._init_hidden_state(len(texts))
+            preds = model.batch_eval(texts, labels, train_tds.label_feature.names)
+            preds_eval.extend(preds)
+            labels_eval.extend(labels)
 
-    for batch in tqdm(test_dl, desc="Iteration"):
-        texts, labels = batch
-        labels = labels.tolist()
-        if model_card.model_name == "han":
-            model._init_hidden_state(len(texts))
-        preds = model.batch_eval(texts, labels, train_tds.label_feature.names)
-        preds_eval.extend(preds)
-        labels_eval.extend(labels)
+        res = metrics_frame(torch.tensor(preds_eval).cpu().numpy(),
+                            torch.tensor(labels_eval).cpu().numpy(),
+                            train_tds.label_feature.names)
 
-    preds_eval = torch.tensor(preds_eval).cpu().numpy()
-    labels_eval = torch.tensor(labels_eval).cpu().numpy()
+        print(res)
+        res['seconds_avg_epoch'] = clocks / (i + 1)
 
-    res = metrics_frame(preds_eval, labels_eval, train_tds.label_feature.names)
-    res['seconds_avg_epoch'] = clocks/task.epoch
+        if not task.test:
+            save_result(task, res)
+            print("\t Result saved ...")
 
-    if not task.test:
-        save_result(task, res)
-        print("\t Result saved ...")
+            train_folder = "%s/%s" % (vars.trained_model_folder,
+                                      task.model.model_name)
+            os.makedirs(train_folder, exist_ok=True)
 
-        train_folder = "%s/%s" % (vars.trained_model_folder,
-                                        task.model.model_name)
+            torch.save(model, "%s/%s" % (train_folder,
+                                         task.idx()))
+            print("\t Model saved ...")
 
-        os.makedirs(train_folder, exist_ok=True)
 
-        torch.save(model, "%s/%s" % (train_folder,
-                                     task.idx()))
-        print("\t Model saved ...")
 
-    print(res)
-    return res

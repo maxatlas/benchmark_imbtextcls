@@ -15,7 +15,7 @@ import pandas as pd
 class TaskDataset:
     def __init__(self, data: DataFrame, label_feature: ClassLabel, config: DataConfig):
         self.info = config
-        self.data = pd.concat([data[text_field] for text_field in config.text_fields])
+        self.data = data[[text_field for text_field in config.text_fields]].agg('\n'.join, axis=1)
         self.labels = data[config.label_field]
         self.label_feature = label_feature
 

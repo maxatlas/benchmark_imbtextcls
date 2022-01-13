@@ -154,7 +154,7 @@ def get_max_lengths(input_ids: list):
     sent_length_list = []
 
     for sents in input_ids:
-        if type(sents[0]) is list:
+        if sents and type(sents[0]) is list:
             for words in sents:
                 word_length_list.append(len(words))
         sent_length_list.append(len(sents))
@@ -163,6 +163,7 @@ def get_max_lengths(input_ids: list):
     sorted_sent_length = sorted(sent_length_list)
 
     sent_max_length = sorted_sent_length[int(0.9*len(sorted_sent_length))]
+
     word_max_length = None
     if sorted_word_length:
         word_max_length = sorted_word_length[int(0.9*len(sorted_word_length))]

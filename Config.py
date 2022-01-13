@@ -1,6 +1,3 @@
-import copy
-import vars
-
 from hashlib import sha256
 from vars import (model_names,
                   transformer_names,

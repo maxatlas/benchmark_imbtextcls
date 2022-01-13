@@ -1,12 +1,10 @@
 """
 check max word length and sent length, configure model word max length accordingly properly
 """
-
 import vars
 import run_task
 import argparse
 import taskcards
-
 from Config import TaskConfig
 
 
@@ -54,7 +52,7 @@ if __name__ == "__main__":
         tasks = []
         tasks += taskcards.scenario_1(dc, args)
         tasks += taskcards.scenario_2(dc, args)
-        tasks += taskcards.scenario_2(dc, args)
+        tasks += taskcards.scenario_3(dc, args)
 
     for task in tasks:
         try:
