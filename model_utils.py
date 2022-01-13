@@ -30,7 +30,7 @@ class TaskModel(nn.Module):
     def unfreeze_emb(self):
         self.emb.weight.requires_grad = True
 
-    def batch_train(self, texts, labels, label_names, loss_func):
+    def batch_train(self, texts, labels, label_names, loss_func, multi_label):
         tokens = self.tokenizer(texts)
 
         if self.tokenizer.name in ["spacy", "spacy-sent", "nltk", "nltk-sent"]:
@@ -44,11 +44,17 @@ class TaskModel(nn.Module):
         logits, _ = self.forward(token_ids)
 
         label_ids = get_label_ids(labels, label_names).to(self.config.device)
-        loss = loss_func(logits, label_ids)
+        if multi_label:
+            loss = loss_func(logits.view(-1, len(label_names)),
+                             label_ids.view(-1, len(label_names)).
+                             type_as(logits.view(-1, len(label_names)))
+                             )
+        else:
+            loss = loss_func(logits, label_ids)
 
         return loss
 
-    def batch_eval(self, texts, labels, label_names):
+    def batch_eval(self, texts, labels, label_names, multi_label=False):
         tokens = self.tokenizer(texts)
 
         if self.tokenizer.name in ["spacy", "spacy-sent", "nltk", "nltk-sent"]:
@@ -60,14 +66,17 @@ class TaskModel(nn.Module):
             token_ids = tokens['input_ids']
 
         with torch.no_grad():
-            _, preds = self.forward(token_ids)
-            if type(labels[0]) is list:
-                preds = get_label_ids(preds, label_names).long()
-        return preds
+            logits, preds = self.forward(token_ids)
+            if multi_label:
+                probs = torch.sigmoid(logits)
+                preds = (probs > 0.5).long()
+                preds = get_label_ids(preds.tolist(), label_names).long()
+                labels = get_label_ids(labels, label_names).long()
+        return preds, labels
 
 
 def get_label_ids(labels, label_names):
-    assert type(labels) is int or (type(labels) is list and type(labels[0]) is int), \
+    assert type(labels) is int or (type(labels) is list and type(labels[0]) is int or list), \
         "Format of the label should be either int or list(int). " \
         "Please transform labels at build_dataset stage."
 
@@ -82,21 +91,31 @@ def get_label_ids(labels, label_names):
     return label_ids.float()
 
 
-def batch_train(self, texts, labels, label_names, loss_func):
+def batch_train(self, texts, labels, label_names, loss_func, multi_label):
     label_ids = get_label_ids(labels, label_names).to(self.config.device)
     logits, _ = self.forward(texts)
 
-    loss = loss_func(logits, label_ids)
+    label_ids = get_label_ids(labels, label_names).to(self.config.device)
+    if multi_label:
+        loss = loss_func(logits.view(-1, len(label_names)),
+                         label_ids.view(-1, len(label_names)).
+                         type_as(logits.view(-1, len(label_names)))
+                         )
+    else:
+        loss = loss_func(logits, label_ids)
 
     return loss
 
 
-def batch_eval(self, texts, labels, label_names):
+def batch_eval(self, texts, labels, label_names, multi_label):
     with torch.no_grad():
-        _, preds = self.forward(texts)
-        if type(labels[0]) is list:
-            preds = get_label_ids(preds, label_names).long()
-    return preds
+        logits, preds = self.forward(texts)
+        if multi_label:
+            probs = torch.sigmoid(logits)
+            preds = (probs > 0.5).long()
+            preds = get_label_ids(preds.tolist(), label_names).long()
+            labels = get_label_ids(labels, label_names).long()
+    return preds, labels
 
 
 def pad_seq(text_ids, length_limit=None):

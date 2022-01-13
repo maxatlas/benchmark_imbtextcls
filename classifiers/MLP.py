@@ -28,5 +28,4 @@ class Model(TaskModel):
             out = mlp(out)
         logits = self.cls(out)
         preds = torch.argmax(logits, dim=1)
-
         return logits, preds

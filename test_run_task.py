@@ -11,18 +11,17 @@ from torch.utils.data import DataLoader
 # os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+'/datasets'
 
 
-dataset_i = 23
+dataset_i = 1
 dd = datasets_meta[dataset_i]
 # dc = DataConfig(**dd)
-# train_tds, _, _ = build_dataset.main(dc)
-# print(train_tds.data)
+# train_tds, _, _, split_info = build_dataset.main(dc)
 # dl = DataLoader(train_tds, batch_size=100, shuffle=True)
 # next(iter(dl))
 
-model_name = "bert"
-pretrained_tokenizer_name = "bert-base-uncased"
-tokenizer_name = None
-pretrained_model_name = "bert-base-uncased"
+model_name = "xlnet"
+pretrained_tokenizer_name = ""
+tokenizer_name = ""
+pretrained_model_name = "xlnet-base-cased"
 emb_path = "%s/emb_layer_glove" % parameter_folder
 
 md = {
@@ -40,7 +39,7 @@ tc = {
     "batch_size": 100,
     "loss_func": BCEWithLogitsLoss(),
     "optimizer": optimizer,
-    "device": "cpu",
+    "device": "cuda:0",
     "test": None,
     "epoch": 1,
 }

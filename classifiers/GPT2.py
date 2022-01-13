@@ -64,11 +64,11 @@ class Model(GPT2PreTrainedModel):
 
         return logits, preds
 
-    def batch_train(self, texts, labels, label_names, loss_func):
+    def batch_train(self, texts, labels, label_names, loss_func, multi_label=False):
         self.transformer = self.transformer.to(self.config.device)
         self.dropout = self.dropout.to(self.config.device)
         self.classifier = self.classifier.to(self.config.device)
-        return batch_train(self, texts, labels, label_names, loss_func)
+        return batch_train(self, texts, labels, label_names, loss_func, multi_label)
 
-    def batch_eval(self, texts, labels, label_names):
-        return batch_eval(self, texts, labels, label_names)
+    def batch_eval(self, texts, labels, label_names, multi_label=False):
+        return batch_eval(self, texts, labels, label_names, multi_label)

@@ -1,9 +1,10 @@
-import pickle
+import dill
 import os
 import torch
 import build_model
 import build_dataset
 import hashlib
+import numpy as np
 
 import vars
 from vars import (cache_folder,
@@ -48,19 +49,19 @@ def save_result(task: TaskConfig, results: dict):
     }
 
     try:
-        ress = pickle.load(open(filename, "rb"))
+        ress = dill.load(open(filename, "rb"))
         ress.update(res)
-        pickle.dump(ress, open(filename, "wb"))
+        dill.dump(ress, open(filename, "wb"))
     except FileNotFoundError:
-        pickle.dump(res, open(filename, "wb"))
-
+        dill.dump(res, open(filename, "wb"))
+        
 
 def load_cache(config: dict):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
 
     filename = "%s/%s" % (cache_folder, idx)
     try:
-        return pickle.load(open(filename, "rb"))
+        return dill.load(open(filename, "rb"))
     except FileNotFoundError:
         return None
 
@@ -70,13 +71,12 @@ def cache(config: dict, data):
 
     filename = "%s/%s" % (cache_folder, idx)
     try:
-        pickle.dump(data, open(filename, 'wb'))
+        dill.dump(data, open(filename, 'wb'))
     except FileNotFoundError:
         os.makedirs(cache_folder, exist_ok=True)
 
 
 def main(task: TaskConfig):
-    print(task.epoch)
     print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
     print("\t\t model %s" % task.model_config['model_name'])
 
@@ -96,7 +96,10 @@ def main(task: TaskConfig):
     print("Loading model ...")
     model = load_cache(task.model_config)
 
-    task.model_config["num_labels"] = data[0].label_feature.num_classes
+    if type(data[0].label_feature) is list:
+        task.model_config["num_labels"] = data[0].label_feature[0].num_classes
+    else:
+        task.model_config["num_labels"] = data[0].label_feature.num_classes
 
     word_max_length, sent_max_length = get_max_lengths(data[0].data)
     if not word_max_length:
@@ -108,7 +111,8 @@ def main(task: TaskConfig):
         model = build_model.main(model_card)
         cache(task.model_config, model)
 
-    train_tds, test_tds, val_tds = data
+    train_tds, test_tds, val_tds, split_info = data
+
     train_dl = DataLoader(train_tds, batch_size=task.batch_size, shuffle=True)
     test_dl = DataLoader(test_tds, batch_size=task.batch_size, shuffle=True)
     # val_dl = DataLoader(val_tds, batch_size=task.batch_size, shuffle=True)
@@ -121,6 +125,7 @@ def main(task: TaskConfig):
 
     preds_eval, labels_eval = [], []
 
+    print(task.epoch)
     for i in range(task.epoch):
         print("\t epoch %s" % str(i))
 
@@ -129,7 +134,8 @@ def main(task: TaskConfig):
         for batch in tqdm(train_dl, desc="Iteration"):
             texts, labels = batch
             labels = labels.tolist()
-            loss = model.batch_train(texts, labels, train_tds.label_feature.names, task.loss_func)
+            label_feature = train_tds.label_feature[0] if train_tds.multi_label else train_tds.label_feature
+            loss = model.batch_train(texts, labels, label_feature.names, task.loss_func, train_tds.multi_label)
             if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
             loss.backward()
@@ -141,22 +147,28 @@ def main(task: TaskConfig):
 
         print("\t Evaluating ...")
         model.eval()
-
         for batch in tqdm(test_dl, desc="Iteration"):
             texts, labels = batch
             labels = labels.tolist()
+            label_feature = test_tds.label_feature[0] if test_tds.multi_label else test_tds.label_feature
             if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
-            preds = model.batch_eval(texts, labels, train_tds.label_feature.names)
+            preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
             preds_eval.extend(preds)
             labels_eval.extend(labels)
 
-        res = metrics_frame(torch.tensor(preds_eval).cpu().numpy(),
-                            torch.tensor(labels_eval).cpu().numpy(),
-                            train_tds.label_feature.names)
+        if test_tds.multi_label:
+            preds_eval = torch.tensor([t.tolist() for t in preds_eval]).cpu().numpy()
+            labels_eval = torch.tensor([t.tolist() for t in labels_eval]).cpu().numpy()
+        else:
+            preds_eval = torch.tensor(preds_eval).cpu().numpy()
+            labels_eval = torch.tensor(labels_eval).cpu().numpy()
+        res = metrics_frame(preds_eval, labels_eval,
+                            label_feature.names)
 
-        print(res)
         res['seconds_avg_epoch'] = clocks / (i + 1)
+        res['split_info'] = split_info
+        print(res)
 
         if not task.test:
             save_result(task, res)

@@ -2,7 +2,7 @@
 Given config -> TaskDataset for train/test/val
 
 """
-from datasets.features.features import ClassLabel
+from datasets.features.features import ClassLabel, Value
 from datasets import load_dataset
 from Config import DataConfig
 
@@ -18,6 +18,7 @@ class TaskDataset:
         self.data = data[[text_field for text_field in config.text_fields]].agg('\n'.join, axis=1)
         self.labels = data[config.label_field]
         self.label_feature = label_feature
+        self.multi_label = type(label_feature) is list
 
     def __len__(self):
         return len(self.data)
@@ -55,11 +56,15 @@ def split_df(df: DataFrame,
         config.cls_ratio_to_imb, config.sample_ratio_to_imb,
         config.balance_strategy)
 
+    split_info = {"train":train_dict,
+                  "test": test_dict,
+                  "val": val_dict}
+
     df, train_df = _retrieve_samples(df, train_dict)
     df, test_df = _retrieve_samples(df, test_dict)
     _, val_df = _retrieve_samples(df, val_dict)
 
-    return train_df, test_df, val_df
+    return train_df, test_df, val_df, split_info
 
 
 def main(config: DataConfig):
@@ -73,7 +78,7 @@ def main(config: DataConfig):
 
     # Create ClassLabel object for the label field if it's not of the type.
     # Replace label in df from string to int.
-    if type(label_features) is not ClassLabel:
+    if type(label_features) is Value:
         if "float" in label_features.dtype:
             df.loc[(df[config.label_field] >= 0.5), 'label'] = 1
             df.loc[(df[config.label_field] < 0.5), 'label'] = 0
@@ -83,10 +88,13 @@ def main(config: DataConfig):
         replace_dict = {name: label_features.names.index(name) for name in label_features.names}
         df = df.replace(replace_dict)
 
-    train, test, val = split_df(df, label_features, config)
+    if type(label_features) is list:
+        train, test, val, split_info = split_df(df, label_features[0], config)
+    else:
+        train, test, val, split_info = split_df(df, label_features, config)
     train, test, val = train[:config.test], test[:config.test], val[:config.test]
     train, test, val = TaskDataset(train, label_features, config), \
                        TaskDataset(test, label_features, config), \
                        TaskDataset(val, label_features, config),
 
-    return train, test, val
+    return train, test, val, split_info

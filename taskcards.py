@@ -1,7 +1,7 @@
 import torch
 import vars
 
-from torch.nn import BCEWithLogitsLoss
+from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
 
 
 def scenario_1(dc, args):
@@ -16,7 +16,7 @@ def scenario_1(dc, args):
             "data_config": dc,
             "model_config": mc,
             "batch_size": 100,
-            "loss_func": BCEWithLogitsLoss(),
+            "loss_func": CrossEntropyLoss(),
             "device": args.device,
             "optimizer": torch.optim.AdamW,
             "test": 3 if args.test else None,
@@ -41,7 +41,7 @@ def scenario_2(dc, args):
                 "data_config": dc,
                 "model_config": mc,
                 "batch_size": 100,
-                "loss_func": BCEWithLogitsLoss(),
+                "loss_func": CrossEntropyLoss(),
                 "device": args.device,
                 "optimizer": torch.optim.AdamW,
                 "test": 3 if args.test else None,
@@ -59,7 +59,7 @@ def scenario_2(dc, args):
             "data_config": dc,
             "model_config": mc,
             "batch_size": 100,
-            "loss_func": BCEWithLogitsLoss(),
+            "loss_func": CrossEntropyLoss(),
             "device": args.device,
             "optimizer": torch.optim.AdamW,
             "test": 3 if args.test else None,
