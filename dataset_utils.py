@@ -1,5 +1,6 @@
 import copy
 import math
+import numpy as np
 
 
 def preprocess_text(text: str):
@@ -15,6 +16,14 @@ def preprocess_texts(texts:list):
     return [preprocess_text(text) for text in texts]
 
 
+def get_label_ids(labels, label_names):
+
+    label_ids = np.array(len(label_names) * [0])
+    for i, label in enumerate(labels):
+        label_ids[label] = 1
+    return label_ids
+
+
 def set_imb_count_dict(count_dict: dict, tolerance: float, threshold: float,
                        cls_ratio_to_imb, sample_ratio_to_imb, balance_strategy: str = None,
                        split_ratio: str = "0.75/0.20/0.05"):
@@ -27,18 +36,13 @@ def set_imb_count_dict(count_dict: dict, tolerance: float, threshold: float,
         train_no_by_label = _get_split_amount_by_strategy(count_dict, balance_strategy, split_ratio[0],
                                                           tolerance, threshold)
 
-    test_no_by_label = {lb: math.floor((count_dict[lb] - train_no_by_label[lb]) * split_ratio[1])
+    test_no_by_label = {lb: math.floor((count_dict[lb] - train_no_by_label[lb]) * split_ratio[0])
                         for lb in count_dict}
-    val_no_by_label = {lb: count_dict[lb] - test_no_by_label[lb] - train_no_by_label[lb]
+    val_no_by_label = {lb: count_dict[lb] - train_no_by_label[lb] - test_no_by_label[lb]
                        for lb in count_dict}
     if not balance_strategy and not is_imbalanced_ds(count_dict):
         train_no_by_label = set_imbalance_by_cls(train_no_by_label, tolerance, threshold,
                                                  cls_ratio_to_imb, sample_ratio_to_imb)
-
-    print("Train/Test/Val split:")
-    print(train_no_by_label)
-    print(test_no_by_label)
-    print(val_no_by_label)
 
     return train_no_by_label, test_no_by_label, val_no_by_label
 

@@ -1,3 +1,4 @@
+import copy
 from hashlib import sha256
 from vars import (model_names,
                   transformer_names,
@@ -56,7 +57,8 @@ class DataConfig:
                  split_ratio="0.75/0.20/0.05",
                  balance_strategy=None,
                  threshold=0.6, tolerance=0.3,
-                 test=None):
+                 test=None,
+                 multi_label=False):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
         assert (type(split_ratio) is str and all([float(e) for e in split_ratio.split("/")])
@@ -85,6 +87,7 @@ class DataConfig:
         self.balance_strategy = balance_strategy
 
         self.test = test
+        self.multi_label = multi_label
 
     def to_dict(self):
         return self.__dict__
@@ -251,7 +254,16 @@ class TaskConfig:
         return self
 
     def to_dict(self):
-        return self.__dict__
+        task = copy.deepcopy(self.__dict__)
+
+        task['loss_func'] = str(task['loss_func'])
+        task['optimizer'] = str(task['optimizer'])
+        try:
+            del task['model']
+            del task['data']
+            return task
+        except KeyError:
+            return task
 
     def idx(self):
         return sha256(str(self.to_dict()).encode('utf-8')).hexdigest()

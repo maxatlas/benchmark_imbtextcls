@@ -5,7 +5,7 @@ import build_model
 import build_dataset
 import hashlib
 import numpy as np
-
+import json
 import vars
 from vars import (cache_folder,
                   results_folder)
@@ -31,6 +31,7 @@ def save_result(task: TaskConfig, results: dict):
     :param results:
     :return:
     """
+
     folder = "_".join(task.data.huggingface_dataset_name)\
                   + "_balance_strategy_%s" % task.data.balance_strategy
     folder = "%s/%s" % (results_folder, folder)
@@ -51,9 +52,12 @@ def save_result(task: TaskConfig, results: dict):
     try:
         ress = dill.load(open(filename, "rb"))
         ress.update(res)
+
         dill.dump(ress, open(filename, "wb"))
+        json.dump(str(res), open(filename+".json", "a"))
     except FileNotFoundError:
         dill.dump(res, open(filename, "wb"))
+        json.dump(str(res), open(filename+".json", "w"))
         
 
 def load_cache(config: dict):
@@ -84,7 +88,6 @@ def main(task: TaskConfig):
     task.data_config["test"] = task.test
     print(str(task.model_config))
 
-
     data_card = DataConfig(**task.data_config)
 
     print("Loading data ...")
@@ -92,7 +95,8 @@ def main(task: TaskConfig):
 
     if not data:
         data = build_dataset.main(data_card)
-        cache(task.data_config, data)
+        if not task.test:
+            cache(task.data_config, data)
     print("Loading model ...")
     model = load_cache(task.model_config)
 
@@ -109,7 +113,8 @@ def main(task: TaskConfig):
 
     if not model:
         model = build_model.main(model_card)
-        cache(task.model_config, model)
+        if not task.test:
+            cache(task.model_config, model)
 
     train_tds, test_tds, val_tds, split_info = data
 
@@ -123,7 +128,7 @@ def main(task: TaskConfig):
 
     clocks = 0
 
-    preds_eval, labels_eval = [], []
+    preds_eval, labels_eval = np.array([]), np.array([])
 
     print(task.epoch)
     for i in range(task.epoch):
@@ -154,21 +159,16 @@ def main(task: TaskConfig):
             if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
             preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
-            preds_eval.extend(preds)
-            labels_eval.extend(labels)
 
-        if test_tds.multi_label:
-            preds_eval = torch.tensor([t.tolist() for t in preds_eval]).cpu().numpy()
-            labels_eval = torch.tensor([t.tolist() for t in labels_eval]).cpu().numpy()
-        else:
-            preds_eval = torch.tensor(preds_eval).cpu().numpy()
-            labels_eval = torch.tensor(labels_eval).cpu().numpy()
+            preds_eval = np.append(preds_eval, preds.cpu().numpy())
+            labels_eval = np.append(labels_eval, labels.cpu().numpy())
+
         res = metrics_frame(preds_eval, labels_eval,
                             label_feature.names)
 
         res['seconds_avg_epoch'] = clocks / (i + 1)
         res['split_info'] = split_info
-        print(res)
+        print(res['Classification report'])
 
         if not task.test:
             save_result(task, res)

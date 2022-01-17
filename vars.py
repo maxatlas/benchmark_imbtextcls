@@ -1,6 +1,6 @@
 hpc_folder = "/scratch/itee/uqclyu1/"
 current = hpc_folder
-# current = ""
+current = ""
 parameter_folder = "%sparams" % current
 results_folder = "%sresults" % current
 cache_folder = "%s.cache/exp" % current
@@ -39,8 +39,8 @@ imb_ratio = {
 }
 
 split_ratio = {
-    "train" : 0.75,
-    "test" : 0.2,
+    "train": 0.75,
+    "test": 0.2,
     "validation": 0.05,
 }
 
@@ -51,10 +51,27 @@ kvtypes = {
 }
 
 datasets_meta = [
+
 {
-    "huggingface_dataset_name": ["glue", "sst2"],
+    "huggingface_dataset_name": ["poem_sentiment"],
     "label_field": "label",
-    "text_fields": ["sentence"],
+    "text_fields": ["verse_text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.6,
+    },
+{
+    "huggingface_dataset_name": ["md_gender_bias"],
+    "label_field": "labels",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.8,
+    "sample_ratio_to_imb": 0.46,
+    "multi_label": True,
+    },
+
+{
+    "huggingface_dataset_name": ["sms_spam"],
+    "label_field": "label",
+    "text_fields": ["sms"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.6,
     },
@@ -76,6 +93,22 @@ datasets_meta = [
     },
 
 {
+    "huggingface_dataset_name": ["banking77"],
+    "label_field": "label",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.3,
+    "sample_ratio_to_imb": 0.6,
+    },
+
+{
+    "huggingface_dataset_name": ["hate_speech18"],
+    "label_field": "label",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.6,
+    },
+
+{
     "huggingface_dataset_name": ["emotion"],
     "label_field": "label",
     "text_fields": ["text"],
@@ -84,7 +117,7 @@ datasets_meta = [
     },
 
 {
-    "huggingface_dataset_name": ["hate_speech18"],
+    "huggingface_dataset_name": ["ade_corpus_v2", "Ade_corpus_v2_classification"],
     "label_field": "label",
     "text_fields": ["text"],
     "cls_ratio_to_imb": 0.5,
@@ -100,36 +133,13 @@ datasets_meta = [
     },
 
 {
-    "huggingface_dataset_name": ["banking77"],
-    "label_field": "label",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.3,
-    "sample_ratio_to_imb": 0.6,
-    },
-
-{
-    "huggingface_dataset_name": ["sms_spam"],
-    "label_field": "label",
-    "text_fields": ["sms"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.6,
-    },
-
-{
-    "huggingface_dataset_name": ["ade_corpus_v2", "Ade_corpus_v2_classification"],
+    "huggingface_dataset_name": ["imdb"],
     "label_field": "label",
     "text_fields": ["text"],
     "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.6,
-    },
+    "sample_ratio_to_imb": 0.5,
 
-{
-    "huggingface_dataset_name": ["poem_sentiment"],
-    "label_field": "label",
-    "text_fields": ["verse_text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.6,
-    },
+},
 
 {
     "huggingface_dataset_name": ["go_emotions"],
@@ -137,14 +147,7 @@ datasets_meta = [
     "text_fields": ["text"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.6,
-    },
-
-{
-    "huggingface_dataset_name": ["md_gender_bias"],
-    "label_field": "labels",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.8,
-    "sample_ratio_to_imb": 0.46,
+    "multi_label": True,
     },
 
 {
@@ -154,43 +157,18 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.6,
     },
+{
+    "huggingface_dataset_name": ["glue", "sst2"],
+    "label_field": "label",
+    "text_fields": ["sentence"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.6,
+    },
 
 {
     "huggingface_dataset_name": ["ag_news"],
     "label_field": "label",
     "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.53,
-    },
-
-{
-    "huggingface_dataset_name": ["lex_glue", "ecthr_a"],
-    "label_field": "labels",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.53,
-    },
-
-{
-    "huggingface_dataset_name": ["lex_glue", "ecthr_b"],
-    "label_field": "labels",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.53,
-    },
-
-{
-    "huggingface_dataset_name": ["lex_glue", "scotus"],
-    "label_field": "label",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.53,
-    },
-
-{
-    "huggingface_dataset_name": ["dbpedia_14"],
-    "label_field": "label",
-    "text_fields": ["title", "content"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.53,
     },
@@ -211,13 +189,12 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.6,
     },
 
-
 {
-    "huggingface_dataset_name": ["yahoo_answers_topics"],
-    "label_field": "topic",
-    "text_fields": ["question_title", "question_content", "best_answer"],
-    "cls_ratio_to_imb": 0.4,
-    "sample_ratio_to_imb": 0.42,
+    "huggingface_dataset_name": ["dbpedia_14"],
+    "label_field": "label",
+    "text_fields": ["title", "content"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.53,
     },
 
 {
@@ -227,15 +204,38 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.42,
     },
+{
+    "huggingface_dataset_name": ["yahoo_answers_topics"],
+    "label_field": "topic",
+    "text_fields": ["question_title", "question_content", "best_answer"],
+    "cls_ratio_to_imb": 0.4,
+    "sample_ratio_to_imb": 0.42,
+    },
+{
+    "huggingface_dataset_name": ["lex_glue", "ecthr_a"],
+    "label_field": "labels",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.53,
+    "multi_label": True,
+    },
 
 {
-    "huggingface_dataset_name": ["imdb"],
+    "huggingface_dataset_name": ["lex_glue", "ecthr_b"],
+    "label_field": "labels",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.53,
+    "multi_label": True,
+    },
+
+{
+    "huggingface_dataset_name": ["lex_glue", "scotus"],
     "label_field": "label",
     "text_fields": ["text"],
     "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.5,
-
-},
+    "sample_ratio_to_imb": 0.53,
+    },
 
 {
     "huggingface_dataset_name": ["amazon_polarity"],

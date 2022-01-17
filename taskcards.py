@@ -80,7 +80,7 @@ def scenario_3(dc, args):
                     "model_name": model,
                     "tokenizer_name": tok,
                     "emb_path": "%s/emb_layer_%s" % (vars.parameter_folder, emb_path),
-                    "word_index_path": "%s/word_count_spacy"
+                    "word_index_path": "%s/word_count_spacy" % (vars.parameter_folder),
                 }
                 tc = {
                     "data_config": dc,

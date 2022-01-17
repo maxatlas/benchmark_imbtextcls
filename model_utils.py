@@ -70,8 +70,7 @@ class TaskModel(nn.Module):
             if multi_label:
                 probs = torch.sigmoid(logits)
                 preds = (probs > 0.5).long()
-                preds = get_label_ids(preds.tolist(), label_names).long()
-                labels = get_label_ids(labels, label_names).long()
+            labels = torch.tensor(labels).long()
         return preds, labels
 
 
@@ -113,8 +112,7 @@ def batch_eval(self, texts, labels, label_names, multi_label):
         if multi_label:
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).long()
-            preds = get_label_ids(preds.tolist(), label_names).long()
-            labels = get_label_ids(labels, label_names).long()
+        labels = torch.tensor(labels).long()
     return preds, labels
 
 
