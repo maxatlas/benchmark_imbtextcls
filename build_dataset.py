@@ -20,7 +20,7 @@ class TaskDataset:
         self.label_feature = label_feature if type(label_feature) is ClassLabel else label_feature[0]
         self.multi_label = type(label_feature) is list
         self.labels = data[config.label_field].map(
-                lambda x: get_label_ids(x, label_feature.names))
+                lambda x: get_label_ids(x, self.label_feature.names))
 
     def __len__(self):
         return len(self.data)

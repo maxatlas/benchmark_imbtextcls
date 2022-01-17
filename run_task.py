@@ -138,7 +138,7 @@ def main(task: TaskConfig):
         for batch in tqdm(train_dl, desc="Iteration"):
             texts, labels = batch
             labels = torch.tensor(labels)
-            label_feature = train_tds.label_feature[0] if train_tds.multi_label else train_tds.label_feature
+            label_feature = train_tds.label_feature
             loss = model.batch_train(texts, labels, label_feature.names, task.loss_func, train_tds.multi_label)
             if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
@@ -154,7 +154,7 @@ def main(task: TaskConfig):
         for batch in tqdm(test_dl, desc="Iteration"):
             texts, labels = batch
             labels = labels.tolist()
-            label_feature = test_tds.label_feature[0] if test_tds.multi_label else test_tds.label_feature
+            label_feature = test_tds.label_feature
             if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
             preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
