@@ -113,8 +113,7 @@ def main(task: TaskConfig):
 
     if not model:
         model = build_model.main(model_card)
-        if not task.test:
-            cache(task.model_config, model)
+        cache(task.model_config, model)
 
     train_tds, test_tds, val_tds, split_info = data
 
@@ -128,7 +127,7 @@ def main(task: TaskConfig):
 
     clocks = 0
 
-    preds_eval, labels_eval = np.array([]), np.array([])
+    preds_eval, labels_eval = None, None
 
     print(task.epoch)
     for i in range(task.epoch):
@@ -138,7 +137,7 @@ def main(task: TaskConfig):
         clock_start = time()
         for batch in tqdm(train_dl, desc="Iteration"):
             texts, labels = batch
-            labels = labels.tolist()
+            labels = torch.tensor(labels)
             label_feature = train_tds.label_feature[0] if train_tds.multi_label else train_tds.label_feature
             loss = model.batch_train(texts, labels, label_feature.names, task.loss_func, train_tds.multi_label)
             if model_card.model_name == "han":
@@ -159,9 +158,11 @@ def main(task: TaskConfig):
             if model_card.model_name == "han":
                 model._init_hidden_state(len(texts))
             preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
-
-            preds_eval = np.append(preds_eval, preds.cpu().numpy())
-            labels_eval = np.append(labels_eval, labels.cpu().numpy())
+            if preds_eval is None and labels_eval is None:
+                preds_eval, labels_eval = preds.cpu().numpy(), labels.cpu().numpy()
+            else:
+                preds_eval = np.append(preds_eval, preds.cpu().numpy(), axis=0)
+                labels_eval = np.append(labels_eval, labels.cpu().numpy(), axis=0)
 
         res = metrics_frame(preds_eval, labels_eval,
                             label_feature.names)

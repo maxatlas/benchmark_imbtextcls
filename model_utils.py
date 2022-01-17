@@ -30,7 +30,7 @@ class TaskModel(nn.Module):
     def unfreeze_emb(self):
         self.emb.weight.requires_grad = True
 
-    def batch_train(self, texts, labels, label_names, loss_func, multi_label):
+    def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
         tokens = self.tokenizer(texts)
 
         if self.tokenizer.name in ["spacy", "spacy-sent", "nltk", "nltk-sent"]:
@@ -43,14 +43,14 @@ class TaskModel(nn.Module):
 
         logits, _ = self.forward(token_ids)
 
-        label_ids = get_label_ids(labels, label_names).to(self.config.device)
         if multi_label:
+            label_ids = label_ids.to(self.config.device)
             loss = loss_func(logits.view(-1, len(label_names)),
                              label_ids.view(-1, len(label_names)).
                              type_as(logits.view(-1, len(label_names)))
                              )
         else:
-            loss = loss_func(logits, label_ids)
+            loss = loss_func(logits, label_ids.float().to(self.config.device))
 
         return loss
 
@@ -70,6 +70,9 @@ class TaskModel(nn.Module):
             if multi_label:
                 probs = torch.sigmoid(logits)
                 preds = (probs > 0.5).long()
+            else:
+                preds = preds.tolist()
+                preds = get_label_ids(preds, label_names)
             labels = torch.tensor(labels).long()
         return preds, labels
 
@@ -90,11 +93,10 @@ def get_label_ids(labels, label_names):
     return label_ids.float()
 
 
-def batch_train(self, texts, labels, label_names, loss_func, multi_label):
-    label_ids = get_label_ids(labels, label_names).to(self.config.device)
+def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
+    label_ids = label_ids.to(self.config.device)
     logits, _ = self.forward(texts)
 
-    label_ids = get_label_ids(labels, label_names).to(self.config.device)
     if multi_label:
         loss = loss_func(logits.view(-1, len(label_names)),
                          label_ids.view(-1, len(label_names)).
@@ -112,6 +114,8 @@ def batch_eval(self, texts, labels, label_names, multi_label):
         if multi_label:
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).long()
+        else:
+            preds = get_label_ids(preds, label_names)
         labels = torch.tensor(labels).long()
     return preds, labels
 

@@ -17,12 +17,10 @@ class TaskDataset:
     def __init__(self, data: DataFrame, label_feature: ClassLabel, config: DataConfig):
         self.info = config
         self.data = data[[text_field for text_field in config.text_fields]].agg('\n'.join, axis=1)
-        if type(label_feature) is list:
-            data[config.label_field] = data[config.label_field].map(
-                lambda x: get_label_ids(x, label_feature[0].names))
-        self.labels = data[config.label_field]
-        self.label_feature = label_feature
+        self.label_feature = label_feature if type(label_feature) is ClassLabel else label_feature[0]
         self.multi_label = type(label_feature) is list
+        self.labels = data[config.label_field].map(
+                lambda x: get_label_ids(x, label_feature.names))
 
     def __len__(self):
         return len(self.data)
@@ -47,11 +45,8 @@ def split_df(df: DataFrame,
     def _retrieve_samples(df0: DataFrame, split_dict: dict):
         all_cls_samples = []
         for label, count in split_dict.items():
-            try:
-                samples = df0.loc[df0[config.label_field] == label]
-                samples = samples.sample(count)
-            except ValueError:
-                samples = df0.loc[df0[config.label_field].map(lambda x: label in x)]
+            samples = df0.loc[df0[config.label_field] == label]
+            samples = samples.sample(count)
             all_cls_samples.append(samples)
             df0 = df0.drop(samples.index)
         return df0, pd.concat(all_cls_samples)
@@ -59,25 +54,34 @@ def split_df(df: DataFrame,
     if type(label_features) is ClassLabel:
         count_dict = {i: len(df.loc[df[config.label_field] == i])
                   for i in range(label_features.num_classes)}
+
+        train_dict, test_dict, val_dict = set_imb_count_dict(
+            count_dict, config.imb_tolerance, config.imb_threshold,
+            config.cls_ratio_to_imb, config.sample_ratio_to_imb,
+            config.balance_strategy)
+
+        split_info = {"train": train_dict,
+                      "test": test_dict,
+                      "val": val_dict}
+
+        df, train_df = _retrieve_samples(df, train_dict)
+        df, test_df = _retrieve_samples(df, test_dict)
+        _, val_df = _retrieve_samples(df, val_dict)
+
     elif type(label_features) is list:
         label_features = label_features[0]
         count_dict = {i: len(df.loc[df[config.label_field].map(lambda x: i in x)])
                       for i in range(label_features.num_classes)}
+        length = len(df)
 
-    train_dict, test_dict, val_dict = set_imb_count_dict(
-        count_dict, config.imb_tolerance, config.imb_threshold,
-        config.cls_ratio_to_imb, config.sample_ratio_to_imb,
-        config.balance_strategy)
+        train_ratio, test_ratio, val_ratio = config.split_ratio.split("/")
+        train_ratio, test_ratio, val_ratio = float(train_ratio), float(test_ratio), float(val_ratio)
 
-    split_info = {"train": train_dict,
-                  "test": test_dict,
-                  "val": val_dict}
+        train_df = df.iloc[:int(length * train_ratio)]
+        test_df = df.iloc[:int(length * test_ratio)]
+        val_df = df.iloc[:int(length * val_ratio)]
 
-    df, train_df = _retrieve_samples(df, train_dict)
-    df, test_df = _retrieve_samples(df, test_dict)
-    _, val_df = _retrieve_samples(df, val_dict)
-
-    return train_df, test_df, val_df, split_info
+    return train_df, test_df, val_df, count_dict
 
 
 def main(config: DataConfig):

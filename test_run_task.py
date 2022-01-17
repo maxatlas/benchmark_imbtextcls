@@ -65,7 +65,7 @@ pretrained_tokenizer_name = args.tokenizer_pretrained
 tokenizer_name = args.tokenizer
 pretrained_model_name = args.model_pretrained
 emb_path = "%s/emb_layer_%s" % (parameter_folder, args.embedder)
-loss = BCEWithLogitsLoss() if dd.get("mutli_label") else CrossEntropyLoss()
+loss = BCEWithLogitsLoss if dd.get("multi_label") else CrossEntropyLoss
 
 md = {
     "model_name": model_name,
@@ -80,7 +80,7 @@ tc = {
     "model_config": md,
     "data_config": dd,
     "batch_size": 100,
-    "loss_func": loss,
+    "loss_func": loss(),
     "optimizer": optimizer,
     "device": args.device,
     "test": None if not args.test else args.test,
