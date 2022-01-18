@@ -91,6 +91,24 @@ class TverskyLoss(_Loss):
         return 1 - Tversky
 
 
+class SSLoss(_Loss):
+    def __init__(self):
+        super(SSLoss, self).__init__()
+
+    @staticmethod
+    def forward(logits, targets, smooth, alpha=ALPHA):
+        logits = torch.sigmoid(logits)
+
+        # True Positives, False Positives & False Negatives
+        TP = (logits * targets).sum()
+        FP = ((1 - targets) * logits).sum()
+        FN = (targets * (1 - logits)).sum()
+        TN = ((1 - targets) * (1 - logits)).sum()
+
+        loss = alpha * TP / (TP + FN) + (1 - alpha) * TN / (TN + FP)
+        return loss
+
+
 class FocalTverskyLoss(_Loss):
     def __init__(self, weight=None, size_average=True):
         super(FocalTverskyLoss, self).__init__()
