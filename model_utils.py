@@ -31,6 +31,19 @@ class TaskModel(nn.Module):
     def unfreeze_emb(self):
         self.emb.weight.requires_grad = True
 
+    def _get_token_ids(self, texts):
+        # For debugging
+        tokens = self.tokenizer(texts)
+
+        if self.tokenizer.name in ["spacy", "spacy-sent", "nltk", "nltk-sent"]:
+            if "sent" in self.tokenizer.name:
+                token_ids = [[[self.word_index.get(word, 0) for word in sent] for sent in doc] for doc in tokens]
+            else:
+                token_ids = [[self.word_index.get(word, 0) for word in doc] for doc in tokens]
+        else:
+            token_ids = tokens['input_ids']
+        return token_ids
+
     def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
         tokens = self.tokenizer(texts)
 
