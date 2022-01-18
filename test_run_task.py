@@ -6,10 +6,6 @@ from vars import *
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
 from Config import TaskConfig
 
-import build_dataset
-from Config import DataConfig
-from torch.utils.data import DataLoader
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument('--dataset_i',
@@ -55,10 +51,6 @@ args = parser.parse_args()
 
 dataset_i = args.dataset_i
 dd = datasets_meta[dataset_i]
-# dc = DataConfig(**dd)
-# train_tds, _, _, split_info = build_dataset.main(dc)
-# dl = DataLoader(train_tds, batch_size=100, shuffle=True)
-# next(iter(dl))
 
 model_name = args.model
 pretrained_tokenizer_name = args.tokenizer_pretrained
@@ -88,5 +80,4 @@ tc = {
 }
 
 task = TaskConfig(**tc)
-res = run_task.main(task)
-print(res)
+run_task.main(task)

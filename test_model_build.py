@@ -5,10 +5,6 @@ from torch.nn import BCEWithLogitsLoss  # CrossEntropyLoss, MSELoss,
 import build_model
 import build_dataset
 import vars
-import os
-
-os.environ['TRANSFORMERS_CACHE'] = vars.hf_cache_folder+"/modules"
-os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+"/datasets"
 
 
 def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenizer_name):
@@ -24,17 +20,17 @@ def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenize
 if __name__ == "__main__":
     dataset_i = 3
     test = 3
-    dc = DataConfig(*datasets_meta[dataset_i].values())
-    train_df, _, _ = build_dataset.main(dc)
+    dc = DataConfig(**datasets_meta[dataset_i])
+    train_df, _, _, _ = build_dataset.main(dc)
 
     n_labels = train_df.label_feature.num_classes
 
-    texts = list(train_df.data[datasets_meta[dataset_i]['text_fields'][0]][:test])
-    labels = list(train_df.data[datasets_meta[dataset_i]['label_field']][:test])
+    texts = list(train_df.data[:test])
+    labels = list(train_df.data[:test])
 
     print("Scenario 1. Pretrained model.")
-    model_name = "roberta"
-    pretrained_model_name = "roberta-base"
+    model_name = "gpt2"
+    pretrained_model_name = "gpt2"
     model = build(model_name, None, pretrained_model_name, None)
 
     model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss())
@@ -64,7 +60,7 @@ if __name__ == "__main__":
     pretrained_tokenizer_name = "xlnet-base-cased"
     model = build(model_name, None, None, pretrained_tokenizer_name)
 
-    model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss())
+    model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss(), dc.multi_label)
     model.batch_eval(texts, labels, train_df.label_feature.names)
 
 
