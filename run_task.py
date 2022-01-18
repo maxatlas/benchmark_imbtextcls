@@ -123,7 +123,7 @@ def main(task: TaskConfig):
 
     if not model:
         model = build_model.main(model_card)
-        cache(task.model_config, model)
+        cache(model_card.to_dict(), model)
 
     if task.freeze_emb:
         model.freeze_emb()
@@ -153,8 +153,6 @@ def main(task: TaskConfig):
             labels = torch.tensor(labels)
             label_feature = train_tds.label_feature
             loss = model.batch_train(texts, labels, label_feature.names, task.loss_func, train_tds.multi_label)
-            if model_card.model_name == "han":
-                model._init_hidden_state(len(texts))
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -168,8 +166,6 @@ def main(task: TaskConfig):
             texts, labels = batch
             labels = labels.tolist()
             label_feature = test_tds.label_feature
-            if model_card.model_name == "han":
-                model._init_hidden_state(len(texts))
             preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
             if preds_eval is None and labels_eval is None:
                 preds_eval, labels_eval = preds.cpu().numpy(), labels.cpu().numpy()

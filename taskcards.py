@@ -57,6 +57,26 @@ def scenario_2(dc, args):
 def scenario_3(dc, args):
     task_cards = []
     loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
+
+    for emb_path in ["glove", "fasttext", "word2vec"]:
+        mc = {
+            "model_name": "han",
+            "tokenizer_name": "nltk-sent",
+            "emb_path": "%s/emb_layer_%s" % (vars.parameter_folder, emb_path),
+            "word_index_path": "%s/word_count_nltk" % (vars.parameter_folder),
+        }
+        tc = {
+            "data_config": dc,
+            "model_config": mc,
+            "batch_size": 100,
+            "loss_func": loss(),
+            "device": args.device,
+            "optimizer": torch.optim.AdamW,
+            "test": 3 if args.test else None,
+            "epoch": args.epoch,
+        }
+        task_cards.append(tc)
+
     for model in vars.customized_model_names:
         for tok in vars.customized_tokenizer_names:
             for emb_path in ["glove", "fasttext", "word2vec"]:

@@ -164,8 +164,7 @@ class ModelConfig:
                     # tokenizer_config(self)
             else:  # Customized non transformer models
                 model_config(self, padding, dilation, stride, filters, hidden_size)
-                assert word_max_length, "Customized non transformer models require word_max_length specified."
-                self.word_max_length = word_max_length
+
                 self.emb_path = emb_path
                 self.word_index_path = word_index_path
                 self.cls_hidden_size = hidden_size
@@ -194,8 +193,16 @@ class ModelConfig:
                         assert tokenizer_name in ["spacy", "spacy-sent", "nltk",
                                                   "nltk-sent"], \
                             "%s model requires a tokenizer (spacy/nltk/bert/gpt2/roberta/xlnet)." % model_name
-
                         self.tokenizer_name = tokenizer_name
+
+                        if model_name == "han":
+                            assert tokenizer_name in ["nltk-sent", "spacy-sent"], "HAN classifier requires " \
+                                                                                  "sentence tokenizer. " \
+                                                                                  "(nltk-sent or spacy-sent)"
+                        else:
+                            assert word_max_length, "Customized non transformer models require " \
+                                                    "word_max_length specified."
+                            self.word_max_length = word_max_length
 
     def __call__(self):
         config = self

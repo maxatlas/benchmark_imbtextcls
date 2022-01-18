@@ -1,6 +1,6 @@
 from Config import ModelConfig, DataConfig
 from vars import datasets_meta
-from torch.nn import BCEWithLogitsLoss  # CrossEntropyLoss, MSELoss,
+from torch.nn import BCEWithLogitsLoss , CrossEntropyLoss, MSELoss
 
 import build_model
 import build_dataset
@@ -18,7 +18,7 @@ def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenize
 
 
 if __name__ == "__main__":
-    dataset_i = 3
+    dataset_i = 10
     test = 3
     dc = DataConfig(**datasets_meta[dataset_i])
     train_df, _, _, _ = build_dataset.main(dc)
@@ -26,7 +26,24 @@ if __name__ == "__main__":
     n_labels = train_df.label_feature.num_classes
 
     texts = list(train_df.data[:test])
-    labels = list(train_df.data[:test])
+    labels = list(train_df.labels[:test])
+
+    print("Scenario 0. HAN")
+    model_name = "han"
+    tokenizer = "nltk-sent"
+    word_max_length = 50
+
+    mc = ModelConfig(model_name, n_labels,
+                     tokenizer_name=tokenizer,
+                     word_max_length=word_max_length,
+                     emb_path="%sparams/emb_layer_glove" % vars.current)
+
+    model = build_model.main(mc)
+
+    input_ids = model._get_token_ids(texts)
+
+    out = model.forward(texts)
+
 
     print("Scenario 1. Pretrained model.")
     model_name = "gpt2"
