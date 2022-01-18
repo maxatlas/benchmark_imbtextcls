@@ -27,6 +27,12 @@ class Model(XLNetPreTrainedModel):
 
         self.init_weights()
 
+    def freeze_emb(self):
+        self.transformer.word_embedding.weight.requires_grad = False
+
+    def unfreeze_emb(self):
+        self.transformer.word_embedding.weight.requires_grad = True
+
     def forward(
         self,
         texts,

@@ -27,6 +27,14 @@ class Model(RobertaPreTrainedModel):
 
         self.init_weights()
 
+    def freeze_emb(self):
+        for param in self.roberta.embeddings.parameters():
+            param.requires_grad = False
+
+    def unfreeze_emb(self):
+        for param in self.roberta.embeddings.parameters():
+            param.requires_grad = True
+
     def forward(
             self,
             texts,

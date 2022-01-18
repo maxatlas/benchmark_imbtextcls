@@ -22,7 +22,14 @@ from dataset_utils import get_max_lengths
 torch.cuda.empty_cache()
 
 
-def save_result(task: TaskConfig, results: dict):
+def write_debug_list(debug_list:list, filename:str):
+    file = open(filename, "a")
+    for l in debug_list:
+        file.write(str(l))
+    file.close()
+
+
+def save_result(task: TaskConfig, results: dict, debug_list: list):
     """
     Under folder of dataset name and balance strategy
     filename is model name _task.idx()
@@ -55,9 +62,11 @@ def save_result(task: TaskConfig, results: dict):
 
         dill.dump(ress, open(filename, "wb"))
         json.dump(str(res), open(filename+".json", "a"))
+        write_debug_list(debug_list, filename+".debug")
     except FileNotFoundError:
         dill.dump(res, open(filename, "wb"))
         json.dump(str(res), open(filename+".json", "w"))
+        write_debug_list(debug_list, filename+".debug")
         
 
 def load_cache(config: dict):
@@ -71,8 +80,9 @@ def load_cache(config: dict):
 
 
 def cache(config: dict, data):
+    print(str(config))
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
-
+    print(idx)
     filename = "%s/%s" % (cache_folder, idx)
     try:
         dill.dump(data, open(filename, 'wb'))
@@ -95,8 +105,8 @@ def main(task: TaskConfig):
 
     if not data:
         data = build_dataset.main(data_card)
-        if not task.test:
-            cache(task.data_config, data)
+        cache(task.data_config, data)
+
     print("Loading model ...")
     model = load_cache(task.model_config)
 
@@ -114,6 +124,9 @@ def main(task: TaskConfig):
     if not model:
         model = build_model.main(model_card)
         cache(task.model_config, model)
+
+    if task.freeze_emb:
+        model.freeze_emb()
 
     train_tds, test_tds, val_tds, split_info = data
 
@@ -164,6 +177,7 @@ def main(task: TaskConfig):
                 preds_eval = np.append(preds_eval, preds.cpu().numpy(), axis=0)
                 labels_eval = np.append(labels_eval, labels.cpu().numpy(), axis=0)
 
+        debug_list = list(zip(labels_eval, preds_eval))
         res = metrics_frame(preds_eval, labels_eval,
                             label_feature.names)
 
@@ -172,7 +186,7 @@ def main(task: TaskConfig):
         print(res['Classification report'])
 
         if not task.test:
-            save_result(task, res)
+            save_result(task, res, debug_list)
             print("\t Result saved ...")
 
             train_folder = "%s/%s" % (vars.trained_model_folder,

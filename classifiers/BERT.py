@@ -25,6 +25,14 @@ class Model(BertPreTrainedModel):
         # Initialize weights and apply final processing
         self.init_weights()
 
+    def freeze_emb(self):
+        for param in self.bert.embeddings.parameters():
+            param.requires_grad = False
+
+    def unfreeze_emb(self):
+        for param in self.bert.embeddings.parameters():
+            param.requires_grad = True
+
     def forward(self, texts, **kwargs):
         max_length = self.config.max_position_embeddings
 
@@ -46,6 +54,7 @@ class Model(BertPreTrainedModel):
         pooled_output = self.dropout(pooled_output)
         logits = self.classifier(pooled_output)
         preds = torch.argmax(logits, dim=1)
+        
         return logits, preds
 
     def batch_train(self, texts, labels, label_names, loss_func, multi_label=False):

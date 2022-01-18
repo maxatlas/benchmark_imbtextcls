@@ -3,6 +3,7 @@ import copy
 import torch.nn as nn
 import dill
 import math
+import torch.nn.functional as F
 
 from dataset_utils import get_max_lengths
 
@@ -42,15 +43,17 @@ class TaskModel(nn.Module):
             token_ids = tokens['input_ids']
 
         logits, _ = self.forward(token_ids)
+        label_ids = label_ids.float()
 
         if multi_label:
+
             label_ids = label_ids.to(self.config.device)
             loss = loss_func(logits.view(-1, len(label_names)),
                              label_ids.view(-1, len(label_names)).
                              type_as(logits.view(-1, len(label_names)))
                              )
         else:
-            loss = loss_func(logits, label_ids.float().to(self.config.device))
+            loss = loss_func(logits, label_ids.to(self.config.device))
 
         return loss
 
@@ -71,8 +74,7 @@ class TaskModel(nn.Module):
                 probs = torch.sigmoid(logits)
                 preds = (probs > 0.5).long()
             else:
-                preds = preds.tolist()
-                preds = get_label_ids(preds, label_names)
+                preds = get_label_ids(preds.tolist(), label_names).long()
             labels = torch.tensor(labels).long()
         return preds, labels
 
@@ -82,18 +84,18 @@ def get_label_ids(labels, label_names):
         "Format of the label should be either int or list(int). " \
         "Please transform labels at build_dataset stage."
 
-    label_ids = [len(label_names) * [0]] * len(labels)
+    label_ids = torch.zeros(len(labels), len(label_names))
     label_list = copy.deepcopy(labels)
     for i, labels in enumerate(label_list):
         if type(labels) is int:
             labels = [labels]
         for label in labels:
             label_ids[i][label] = 1
-    label_ids = torch.tensor(label_ids)
-    return label_ids.float()
+    return label_ids
 
 
 def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
+    label_ids = label_ids.float()
     label_ids = label_ids.to(self.config.device)
     logits, _ = self.forward(texts)
 
@@ -104,7 +106,6 @@ def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
                          )
     else:
         loss = loss_func(logits, label_ids)
-
     return loss
 
 
@@ -115,7 +116,7 @@ def batch_eval(self, texts, labels, label_names, multi_label):
             probs = torch.sigmoid(logits)
             preds = (probs > 0.5).long()
         else:
-            preds = get_label_ids(preds, label_names)
+            preds = get_label_ids(preds.tolist(), label_names)
         labels = torch.tensor(labels).long()
     return preds, labels
 

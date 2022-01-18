@@ -28,6 +28,14 @@ class Model(GPT2PreTrainedModel):
 
         self.init_weights()
 
+    def freeze_emb(self):
+        self.transformer.wte.weight.requires_grad = False
+        self.transformer.wpe.weight.requires_grad = False
+
+    def unfreeze_emb(self):
+        self.transformer.wte.weight.requires_grad = True
+        self.transformer.wpe.weight.requires_grad = True
+
     def set_cls_type(self, cls_type):
         self.cls_type = cls_type
 
