@@ -1,9 +1,12 @@
 import torch
 import torch.nn as nn
 
-from model_utils import pad_seq, batch_train, batch_eval
-from transformers import (BertPreTrainedModel,
-                          BertModel)
+from model_utils import (Classifier,
+                         pad_seq,
+                         batch_train,
+                         batch_eval)
+from classifiers.BERT_homemade import (BertPreTrainedModel,
+                                       BertModel)
 
 
 class Model(BertPreTrainedModel):
@@ -20,10 +23,7 @@ class Model(BertPreTrainedModel):
         classifier_dropout = config.hidden_dropout_prob \
             if not config.classifier_dropout else config.classifier_dropout
         self.dropout = nn.Dropout(classifier_dropout).to(self.config.device)
-        self.classifier = nn.Linear(config.hidden_size, config.num_labels).to(self.config.device)
-
-        # Initialize weights and apply final processing
-        self.init_weights()
+        self.classifier = Classifier(config)
 
     def freeze_emb(self):
         for param in self.bert.embeddings.parameters():
@@ -36,11 +36,15 @@ class Model(BertPreTrainedModel):
     def forward(self, texts, **kwargs):
         max_length = self.config.max_position_embeddings
 
-        input_ids, token_type_ids, attention_mask = self.tokenizer.core(texts).values()
+        out = self.tokenizer.core(texts)
+        input_ids, token_type_ids, attention_mask = out['input_ids'], \
+                                                    out.get('token_ids'), \
+                                                    out['attention_mask']
 
         input_ids = pad_seq(input_ids, max_length).to(self.config.device)
         attention_mask = pad_seq(attention_mask, max_length).to(self.config.device)
-        token_type_ids = pad_seq(token_type_ids, max_length).to(self.config.device)
+        if token_type_ids:
+            token_type_ids = pad_seq(token_type_ids, max_length).to(self.config.device)
 
         outputs = self.bert(
             input_ids,
@@ -48,7 +52,6 @@ class Model(BertPreTrainedModel):
             token_type_ids=token_type_ids,
             **kwargs
         )
-
         pooled_output = outputs[1]
 
         pooled_output = self.dropout(pooled_output)

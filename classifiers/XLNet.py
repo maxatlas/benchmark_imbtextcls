@@ -1,13 +1,12 @@
 import torch
 import torch.nn as nn
-import math
 
-from model_utils import (batch_eval,
-                         batch_train,
-                         pad_seq)
-from transformers import (XLNetPreTrainedModel,
-                          XLNetModel,
-                          modeling_utils)
+from model_utils import (pad_seq,
+                         batch_eval,
+                         batch_train)
+from classifiers.XLNet_homemade import (XLNetPreTrainedModel,
+                                        XLNetModel)
+from transformers import modeling_utils
 
 
 class Model(XLNetPreTrainedModel):
@@ -25,8 +24,6 @@ class Model(XLNetPreTrainedModel):
         self.sequence_summary = modeling_utils.SequenceSummary(config).to(self.config.device)
         self.classifier = nn.Linear(config.d_model, config.num_labels).to(self.config.device)
 
-        self.init_weights()
-
     def freeze_emb(self):
         self.transformer.word_embedding.weight.requires_grad = False
 
@@ -41,11 +38,15 @@ class Model(XLNetPreTrainedModel):
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        input_ids, token_type_ids, attention_mask = self.tokenizer.core(texts).values()
+        out = self.tokenizer.core(texts)
+        input_ids, attention_mask, token_type_ids = out['input_ids'], \
+                                                    out.get("attention_mask"), \
+                                                    out.get("token_type_ids")
 
         input_ids = pad_seq(input_ids).to(self.config.device)
         attention_mask = pad_seq(attention_mask).to(self.config.device)
-        token_type_ids = pad_seq(token_type_ids).to(self.config.device)
+        if token_type_ids:
+            token_type_ids = pad_seq(token_type_ids).to(self.config.device)
 
         transformer_outputs = self.transformer(
             input_ids,

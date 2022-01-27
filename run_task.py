@@ -115,10 +115,11 @@ def main(task: TaskConfig):
     else:
         task.model_config["num_labels"] = data[0].label_feature.num_classes
 
-    word_max_length, sent_max_length = get_max_lengths(data[0].data)
-    if not word_max_length:
-        word_max_length = sent_max_length
-    task.model_config["word_max_length"] = word_max_length
+    if not task.model_config.get("pretrained_tokenizer_name"):
+        word_max_length, sent_max_length = get_max_lengths(data[0].data)
+        if not word_max_length:
+            word_max_length = sent_max_length
+        task.model_config["word_max_length"] = word_max_length
     model_card = task().model
 
     if not model:

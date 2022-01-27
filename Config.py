@@ -1,5 +1,7 @@
 import copy
 from hashlib import sha256
+
+import vars
 from vars import (model_names,
                   transformer_names,
                   parameter_folder)
@@ -115,6 +117,11 @@ class ModelConfig:
                  pretrained_model_name="",
                  pretrained_tokenizer_name="",
                  lr=0.001,
+                 disable_output=True,
+                 disable_selfoutput=True,
+                 disable_intermediate=True,
+                 add_pooling_layer=False,
+                 n_heads=2,
                  ):
 
         self.model_name = model_name.lower()
@@ -136,6 +143,7 @@ class ModelConfig:
         self.num_labels = num_labels
         self.device = device
 
+
         if pretrained_model_name:
             assert any([transformer_name in pretrained_model_name
                         for transformer_name in transformer_names]), "Pretrained model name is not valid."
@@ -151,14 +159,50 @@ class ModelConfig:
 
         else:  # Customized models or transformers
             if model_name in transformer_names:  # Customized transformers
+                self.disable_intermediate = disable_intermediate
+                self.disable_output = disable_output
+                self.disable_selfoutput = disable_selfoutput
+                self.cls_hidden_size = hidden_size
+
                 transformer_config(self, word_max_length, dropout, activation_function)
 
+                if model_name in ["bert", "roberta"]:
+                    self.add_pooling_layer = add_pooling_layer
+                    self.num_hidden_layers = n_layers
+                    self.num_attention_heads = n_heads
+                elif model_name in ["gpt2", "xlnet"]:
+                    self.n_head = n_heads
+                    self.n_layer = n_layers
+
                 if pretrained_tokenizer_name:  # Customized transformers with pretrained transformer tokenizers.
-                    assert model_name in pretrained_tokenizer_name, "Unmatched pretrained tokenizer %s for model %s." \
-                                                                     % (pretrained_tokenizer_name, model_name)
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
-                    self.tokenizer_name = model_name
+                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
+
+                    if self.tokenizer_name == "bert" or self.tokenizer_name == "roberta":
+                        emb_d = 768
+                        word_max_length = 512
+                    elif self.tokenizer_name == "gpt2" or self.tokenizer_name == "xlnet":
+                        emb_d = 768
+                        if self.tokenizer_name == "gpt2":
+                            word_max_length = 1024
+                        else:
+                            word_max_length = 1024 if model_name == "gpt2" else 512
+
+
+                    if model_name == "bert" or model_name == "roberta":
+                        self.hidden_size = emb_d
+                        self.max_position_embeddings = word_max_length
+                    elif model_name == "gpt2":
+                        self.n_embd = emb_d
+                        self.n_positions = word_max_length
+                    elif model_name == "xlnet":
+                        self.d_model = emb_d
+
+                    if not emb_path:
+                        self.emb_path = vars.parameter_folder + "/emb_layer_%s" % \
+                                        (get_tokenizer_name(pretrained_tokenizer_name))
+
                 else:
                     raise NotImplementedError("Customized transformer tokenizers not implemented.")
                     # tokenizer_config(self)
@@ -177,8 +221,10 @@ class ModelConfig:
                 if pretrained_tokenizer_name:  # with pretrained tokenizer.
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
-                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
+                    assert tokenizer_name, "tokenizer_name must exist"
+                    self.tokenizer_name = tokenizer_name
                     self.emb_path = "%s/emb_layer_%s" % (parameter_folder, self.tokenizer_name)
+
                 else:
                     if tokenizer_name in transformer_names:
                         raise NotImplementedError("Customized transformer tokenizers not implemented.")
@@ -222,6 +268,8 @@ class ModelConfig:
 
             if self.pretrained_model_name:
                 config = config.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
+            if self.pretrained_tokenizer_name:
+                config = config().from_dict(self.__dict__)
             else:
                 config = config().from_dict(self.__dict__)
 

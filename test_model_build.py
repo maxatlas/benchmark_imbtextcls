@@ -5,6 +5,7 @@ from torch.nn import BCEWithLogitsLoss , CrossEntropyLoss, MSELoss
 import build_model
 import build_dataset
 import vars
+import torch
 
 
 def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenizer_name):
@@ -28,37 +29,47 @@ if __name__ == "__main__":
     texts = list(train_df.data[:test])
     labels = list(train_df.labels[:test])
 
-    print("Scenario 0. HAN")
-    model_name = "han"
-    tokenizer = "nltk-sent"
-    word_max_length = 50
+    labels = torch.tensor(labels)
 
-    mc = ModelConfig(model_name, n_labels,
-                     tokenizer_name=tokenizer,
-                     word_max_length=word_max_length,
-                     emb_path="%sparams/emb_layer_glove" % vars.current)
+    # print("Scenario 0. HAN")
+    # model_name = "han"
+    # tokenizer = "nltk-sent"
+    # word_max_length = 50
+    #
+    # mc = ModelConfig(model_name, n_labels,
+    #                  tokenizer_name=tokenizer,
+    #                  word_max_length=word_max_length,
+    #                  emb_path="%sparams/emb_layer_glove" % vars.current)
+    #
+    # model = build_model.main(mc)
+    #
+    # input_ids = model._get_token_ids(texts)
+    #
+    # out = model.forward(input_ids)
 
-    model = build_model.main(mc)
 
-    input_ids = model._get_token_ids(texts)
-
-    out = model.forward(texts)
-
-
-    print("Scenario 1. Pretrained model.")
-    model_name = "gpt2"
-    pretrained_model_name = "gpt2"
-    model = build(model_name, None, pretrained_model_name, None)
-
-    model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss())
-    model.batch_eval(texts, labels, train_df.label_feature.names)
+    # print("Scenario 1. Pretrained model.")
+    # model_name = "bert"
+    # pretrained_model_name = "bert-base-uncased"
+    # model = build(model_name, None, pretrained_model_name, None)
+    #
+    # model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss())
+    # model.batch_eval(texts, labels, train_df.label_feature.names)
 
 
     print("Scenario 2. Transformer with pretrained tokenizer.")
-    model_name = "roberta"
-    pretrained_tokenizer_name = "roberta-base"
-    model = build(model_name, None, None, pretrained_tokenizer_name)
-
+    model_name = "gpt2"
+    pretrained_tokenizer_name = "bert-base-uncased"
+    mc = ModelConfig(
+        model_name,
+        n_labels,
+        pretrained_tokenizer_name=pretrained_tokenizer_name,
+        n_layers=1,
+        hidden_size=50,
+        n_heads=1,
+        device="cpu"
+    )
+    model = build_model.main(mc)
     model.batch_train(texts, labels, train_df.label_feature.names, BCEWithLogitsLoss())
     model.batch_eval(texts, labels, train_df.label_feature.names)
 
