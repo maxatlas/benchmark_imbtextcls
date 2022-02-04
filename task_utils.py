@@ -100,11 +100,7 @@ def get_res_df(info):
 if __name__ == "__main__":
     import dill
 
-    info = list(dill.load(open(".cache/results/poem_sentiment_balance_strategy_None/han", "rb")).values())[0]
-    df = get_res_df(info)
-
-    info = list(dill.load(open(".cache/results/md_gender_bias", "rb")).values())[0]
-    df1 = get_res_df(info)
-
-    dfs = [df, df1]
+    infos = list(dill.load(open("results/sms_spam_balance_strategy_None/bert", "rb")).values())
+    dfs = [get_res_df(info) for info in infos]
     pd.concat(dfs, axis=0, levels=0)  # different datasets
+    pd.concat(dfs, axis=1, levels=0)  # different models

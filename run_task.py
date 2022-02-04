@@ -191,7 +191,7 @@ def main(task: TaskConfig):
         print(acc_list)
         print("Accuracy this epoch: %f" % res["Accuracy"])
         # If the accuracy is lower than half of the previous results ...
-        if acc_list and res["Accuracy"] < acc_list[-1]:
+        if acc_list and res["Accuracy"] <= acc_list[-1]:
             if i > len(acc_list) + 5:
                 break
             continue
