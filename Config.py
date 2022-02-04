@@ -177,6 +177,7 @@ class ModelConfig:
                 if pretrained_tokenizer_name:  # Customized transformers with pretrained transformer tokenizers.
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
+
                     self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
 
                     if self.tokenizer_name == "bert" or self.tokenizer_name == "roberta":
@@ -221,8 +222,7 @@ class ModelConfig:
                 if pretrained_tokenizer_name:  # with pretrained tokenizer.
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
-                    assert tokenizer_name, "tokenizer_name must exist"
-                    self.tokenizer_name = tokenizer_name
+                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
                     self.emb_path = "%s/emb_layer_%s" % (parameter_folder, self.tokenizer_name)
 
                 else:
@@ -248,6 +248,7 @@ class ModelConfig:
                         else:
                             assert word_max_length, "Customized non transformer models require " \
                                                     "word_max_length specified."
+
                             self.word_max_length = word_max_length
 
     def __call__(self):
@@ -268,7 +269,7 @@ class ModelConfig:
 
             if self.pretrained_model_name:
                 config = config.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
-            if self.pretrained_tokenizer_name:
+            elif self.pretrained_tokenizer_name:
                 config = config().from_dict(self.__dict__)
             else:
                 config = config().from_dict(self.__dict__)
