@@ -122,8 +122,8 @@ class ModelConfig:
                  disable_output=True,
                  disable_selfoutput=True,
                  disable_intermediate=True,
-                 add_pooling_layer=False,
-                 n_heads=2,
+                 add_pooling_layer=True,
+                 n_heads=1,
                  ):
 
         self.model_name = model_name.lower()
@@ -215,12 +215,14 @@ class ModelConfig:
                 self.dropout = dropout
                 self.activation = activation_function
                 self.tokenizer = None
+                self.word_max_length = word_max_length
 
                 if pretrained_tokenizer_name:  # with pretrained tokenizer.
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
-                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name) \
-                        if not tokenizer_name else tokenizer_name
+                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
+                    if model_name == "han":
+                        self.tokenizer_name = self.tokenizer_name + "-sent"
                     self.emb_path = "%s/emb_layer_%s" % (parameter_folder,
                                                          get_tokenizer_name(pretrained_tokenizer_name))
 

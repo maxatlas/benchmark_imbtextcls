@@ -49,10 +49,28 @@ def metrics_frame(probs, preds, labels, label_names):
     return model_metrics
 
 
+def merge_res(results):
+    out = {}
+    for key in results[0]:
+        values = []
+        for res in results:
+            val = res[key]
+            if type(val) is dict:
+                val = pd.DataFrame.from_dict(val)
+            values.append(val)
+        if type(values[0]) is pd.core.frame.DataFrame:
+            out[key] = (sum(values)/len(values)).to_dict()
+        else:
+            values = torch.tensor(values).view(-1)
+            value = sum(values)/len(values)
+            out[key] = float(value)
+    return out
+
+
 def get_res_df(info):
     results = {}
 
-    res = info['result'][-1]
+    res = merge_res(info['result'])
     task = info['task']
     model_name = task['model_config']['model_name']
     data_name = "_".join(task['data_config']['huggingface_dataset_name'])

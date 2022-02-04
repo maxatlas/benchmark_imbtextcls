@@ -8,7 +8,7 @@ trained_model_folder = "%strained" % current
 
 hf_cache_folder = "%s.cache/huggingface" % current
 
-model_names = ["bert", "xlnet", "roberta", "gpt2", "lstm",
+model_names = ["bert", "xlnet", "gpt2", "lstm",
                "lstmattn", "cnn", "rcnn", "mlp", "han"]
 transformer_names = model_names[:4]
 transformer_pretrain = \

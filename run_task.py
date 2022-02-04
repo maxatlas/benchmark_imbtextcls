@@ -35,7 +35,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
     except FileNotFoundError:
         os.makedirs(folder, exist_ok=True)
 
-    filename = "%s/%s" % (folder, "_".join(task.data.huggingface_dataset_name))
+    filename = "%s/%s" % (folder, task.model.model_name)
     res = {
         idx: {
             "result": [results],
@@ -56,7 +56,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
         else:
             results.update(res)
         dill.dump(results, open(filename, "wb"))
-        json.dump(results, open(filename+".json", "w"))
+        json.dump(results, open(filename + ".json", "w"))
 
         roc_results = dill.load(open(filename + ".roc", "rb"))
         if idx in roc_results:
@@ -118,14 +118,14 @@ def main(task: TaskConfig):
     else:
         task.model_config["num_labels"] = data[0].label_feature.num_classes
 
-    if not task.model_config.get("pretrained_tokenizer_name"):
-        word_max_length, sent_max_length = get_max_lengths(data[0].data)
-        if not word_max_length:
-            word_max_length = sent_max_length
+    word_max_length, sent_max_length = get_max_lengths(data[0].data)
+    if not word_max_length:
+        word_max_length = sent_max_length
 
-        word_max_length = 512 if word_max_length > 512 else word_max_length
+    word_max_length = 512 if word_max_length > 512 else word_max_length
 
-        task.model_config["word_max_length"] = word_max_length
+    task.model_config["word_max_length"] = word_max_length
+
     model_card = task().model
 
     if not model:

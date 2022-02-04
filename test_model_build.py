@@ -20,7 +20,7 @@ def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenize
 
 
 if __name__ == "__main__":
-    dataset_i = 15
+    dataset_i = 0
     test = None
     dc = DataConfig(**datasets_meta[dataset_i])
     train_df, _, _, _ = build_dataset.main(dc)
@@ -33,8 +33,8 @@ if __name__ == "__main__":
     labels = torch.tensor(labels)
 
     print("Scenario 0. HAN")
-    model_name = "han"
-    tokenizer = "bert-sent"
+    model_name = "mlp"
+    tokenizer = "bert"
     word_max_length = 50
 
     mc = ModelConfig(model_name, n_labels,
@@ -45,7 +45,8 @@ if __name__ == "__main__":
 
     model = build_model.main(mc)
 
-    out = model.batch_eval(texts, labels, train_df.label_feature.names)
+    out = model.batch_train(texts, labels, train_df.label_feature.names, loss_func=BCEWithLogitsLoss(),
+                            multi_label=False)
     out = metrics_frame(out[0], out[1], out[2], train_df.label_feature.names)
 
     print("Scenario 1. Pretrained model.")

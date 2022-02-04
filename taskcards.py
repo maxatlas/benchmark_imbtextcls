@@ -7,11 +7,12 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
 def scenario_1(dc: dict, args):
     task_cards = []
     loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
-    for model, pretrain in list(zip(vars.transformer_names,
-                                    vars.transformer_pretrain)):
+    for model in list(vars.model_names):
+
         mc = {
             "model_name": model,
-            "pretrained_model_name": pretrain,
+            "pretrained_tokenizer_name": args.tokenizer_pretrained,
+            "n_layers": args.layers,
         }
         tc = {
             "data_config": dc,
@@ -20,82 +21,10 @@ def scenario_1(dc: dict, args):
             "loss_func": loss(),
             "device": args.device,
             "optimizer": torch.optim.AdamW,
-            "test": 3 if args.test else None,
+            "test": args.test if args.test else None,
             "epoch": args.epoch,
         }
 
         task_cards.append(tc)
-
-    return task_cards
-
-
-def scenario_2(dc, args):
-    task_cards = []
-    loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
-
-    for model in vars.model_names[4:-1]:
-        for pretrain in vars.transformer_pretrain:
-            mc = {
-                "model_name": model,
-                "pretrained_tokenizer_name": pretrain,
-            }
-            tc = {
-                "data_config": dc,
-                "model_config": mc,
-                "batch_size": 100,
-                "loss_func": loss(),
-                "device": args.device,
-                "optimizer": torch.optim.AdamW,
-                "test": 3 if args.test else None,
-                "epoch": args.epoch,
-            }
-            task_cards.append(tc)
-
-    return task_cards
-
-
-def scenario_3(dc, args):
-    task_cards = []
-    loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
-
-    for emb_path in ["glove", "fasttext", "word2vec"]:
-        mc = {
-            "model_name": "han",
-            "tokenizer_name": "nltk-sent",
-            "emb_path": "%s/emb_layer_%s" % (vars.parameter_folder, emb_path),
-            "word_index_path": "%s/word_count_nltk" % (vars.parameter_folder),
-        }
-        tc = {
-            "data_config": dc,
-            "model_config": mc,
-            "batch_size": 100,
-            "loss_func": loss(),
-            "device": args.device,
-            "optimizer": torch.optim.AdamW,
-            "test": 3 if args.test else None,
-            "epoch": args.epoch,
-        }
-        task_cards.append(tc)
-
-    for model in vars.customized_model_names:
-        for tok in vars.customized_tokenizer_names:
-            for emb_path in ["glove", "fasttext", "word2vec"]:
-                mc = {
-                    "model_name": model,
-                    "tokenizer_name": tok,
-                    "emb_path": "%s/emb_layer_%s" % (vars.parameter_folder, emb_path),
-                    "word_index_path": "%s/word_count_spacy" % (vars.parameter_folder),
-                }
-                tc = {
-                    "data_config": dc,
-                    "model_config": mc,
-                    "batch_size": 100,
-                    "loss_func": loss(),
-                    "device": args.device,
-                    "optimizer": torch.optim.AdamW,
-                    "test": 3 if args.test else None,
-                    "epoch": args.epoch,
-                }
-                task_cards.append(tc)
 
     return task_cards
