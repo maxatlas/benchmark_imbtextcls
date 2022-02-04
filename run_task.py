@@ -47,8 +47,6 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
         idx: roc_list
     }
 
-    print(res)
-
     try:
         results = dill.load(open(filename, "rb"))
         if idx in results:
@@ -59,18 +57,18 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
         json.dump(results, open(filename + ".json", "w"))
 
         roc_results = dill.load(open(filename + ".roc", "rb"))
-        if idx in roc_results:
-            roc_results[idx][0].extend(roc_res[idx][0])
-            roc_results[idx][1].extend(roc_res[idx][1])
-        else:
-            roc_results.update(res)
+        roc_results.update(res)
         dill.dump(roc_results, open(filename + ".roc", "wb"))
 
     except FileNotFoundError:
         dill.dump(res, open(filename, "wb"))
         json.dump(res, open(filename + ".json", "w"))
         dill.dump(roc_res, open(filename + ".roc", "wb"))
-        
+
+    except KeyError:
+        dill.dump(res, open(filename, "wb"))
+        json.dump(res, open(filename + ".json", "w"))
+
 
 def load_cache(config: dict):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
@@ -148,10 +146,11 @@ def main(task: TaskConfig):
     clocks = 0
 
     acc_list = []
+    valid_i = None
 
     for i in range(task.epoch):
         torch.cuda.empty_cache()
-        valid_i = None
+
         probs_test, preds_test, labels_test = None, None, None
 
         print("\t epoch %s" % str(i))
@@ -190,15 +189,18 @@ def main(task: TaskConfig):
         print("\tAccuracy so far:")
         print(acc_list)
         print("Accuracy this epoch: %f" % res["Accuracy"])
+
         # If the accuracy is lower than half of the previous results ...
-        if not task.full_run and acc_list and res["Accuracy"] <= acc_list[-1]:
-            if i > len(acc_list) + int(task.epoch * 0.1):
+        if acc_list and res["Accuracy"] <= acc_list[-1]:
+            threshold = len(acc_list) + int(task.epoch * float(task.early_stop_alpha))
+            print("###################%i %i#######################" % (i, threshold))
+            if i >= threshold:
                 break
             continue
 
-        acc_list.append(res["Accuracy"])
         valid_i = i
-        res['seconds_avg_epoch'] = clocks / (i + 1)
+        valid_res = res
+        acc_list.append(res["Accuracy"])
         print(res['Classification report'])
 
         if not task.test:
@@ -206,7 +208,9 @@ def main(task: TaskConfig):
             print("\t Result cached ...")
 
     if not task.test:
+        res = valid_res
         res['epochs'] = valid_i
+        res['seconds_avg_epoch'] = clocks / (i + 1)
 
         save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
         print("\t Result saved ...")
