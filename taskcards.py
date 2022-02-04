@@ -23,6 +23,7 @@ def scenario_1(dc: dict, args):
             "optimizer": torch.optim.AdamW,
             "test": args.test if args.test else None,
             "epoch": args.epoch,
+            "full_run": args.full_run,
         }
 
         task_cards.append(tc)

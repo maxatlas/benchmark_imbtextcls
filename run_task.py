@@ -151,7 +151,7 @@ def main(task: TaskConfig):
 
     for i in range(task.epoch):
         torch.cuda.empty_cache()
-
+        valid_i = None
         probs_test, preds_test, labels_test = None, None, None
 
         print("\t epoch %s" % str(i))
@@ -191,13 +191,13 @@ def main(task: TaskConfig):
         print(acc_list)
         print("Accuracy this epoch: %f" % res["Accuracy"])
         # If the accuracy is lower than half of the previous results ...
-        if acc_list and res["Accuracy"] <= acc_list[-1]:
-            if i > len(acc_list) + 5:
+        if not task.full_run and acc_list and res["Accuracy"] <= acc_list[-1]:
+            if i > len(acc_list) + int(task.epoch * 0.1):
                 break
             continue
 
         acc_list.append(res["Accuracy"])
-
+        valid_i = i
         res['seconds_avg_epoch'] = clocks / (i + 1)
         print(res['Classification report'])
 
@@ -206,7 +206,7 @@ def main(task: TaskConfig):
             print("\t Result cached ...")
 
     if not task.test:
-        res['epochs'] = i if i != task.epoch-1 else len(acc_list)
+        res['epochs'] = valid_i
 
         save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
         print("\t Result saved ...")

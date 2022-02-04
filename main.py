@@ -36,6 +36,10 @@ if __name__ == "__main__":
                         '-l',
                         type=int,
                         default=1)
+    parser.add_argument("--full_run",
+                        '-f',
+                        type=int,
+                        default=0)
 
     args = parser.parse_args()
     dc = vars.datasets_meta[args.dataset_i]
