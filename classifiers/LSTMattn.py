@@ -24,7 +24,7 @@ class Model(TaskModel):
         return weighted_f
 
     def forward(self, input_ids):
-        input_ids = pad_seq(input_ids, self.config.word_max_length).to(self.config.device)
+        input_ids = pad_seq(input_ids).to(self.config.device)
 
         embeds = self.emb(input_ids)
         out = self.lstm(embeds)

@@ -15,9 +15,9 @@ have the option to disable:
 class BertLayer(BertLayer):
     def __init__(self, config):
         super(BertLayer, self).__init__(config)
-        if config.disable_intermediate:
+        if "disable_intermediate" in config.to_dict() and config.disable_intermediate:
             self.intermediate = Identity()
-        if config.disable_output:
+        if "disable_output" in config.to_dict() and config.disable_output:
             self.output = Identity2()
         self.attention = BertAttention(config)
 
@@ -25,7 +25,7 @@ class BertLayer(BertLayer):
 class BertAttention(BertAttention):
     def __init__(self, config, position_embedding_type=None):
         super(BertAttention, self).__init__(config, position_embedding_type)
-        if config.disable_selfoutput:
+        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
             self.output = Identity2()
 
 
@@ -147,7 +147,8 @@ class BertModel(BertPreTrainedModel):
 
         self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
-        self.pooler = BertPooler(config) if config.add_pooling_layer else None
+        self.pooler = BertPooler(config) if "add_pooling_layer" in config.to_dict() \
+                                            and config.add_pooling_layer else None
 
         self.init_weights()
 

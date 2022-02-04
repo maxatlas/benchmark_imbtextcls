@@ -13,7 +13,7 @@ class Model(TaskModel):
         self.W2 = nn.Linear(2 * config.cls_hidden_size + self.emb_d, config.cls_hidden_size).to(self.config.device)
 
     def forward(self, input_ids):
-        input_ids = pad_seq(input_ids, self.config.word_max_length).to(self.config.device)
+        input_ids = pad_seq(input_ids).to(self.config.device)
 
         x = self.emb(input_ids)
         x = x.permute(1, 0, 2)  # input.size() = (num_sequences, batch_size, embedding_length)

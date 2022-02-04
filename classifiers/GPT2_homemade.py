@@ -7,7 +7,7 @@ from model_utils import Identity
 class GPT2Block(GPT2Block):
     def __init__(self, config, layer_idx=None):
         super().__init__(config, layer_idx)
-        if config.disable_selfoutput:
+        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
             self.mlp = Identity()
 
 

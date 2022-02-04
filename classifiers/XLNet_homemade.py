@@ -7,7 +7,7 @@ from transformers.models.xlnet.modeling_xlnet import *
 class XLNetLayer(XLNetLayer):
     def __init__(self, config):
         super(XLNetLayer, self).__init__(config)
-        if config.disable_selfoutput:
+        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
             self.ff = Identity()
 
 

@@ -17,8 +17,8 @@ class Model(TaskModel):
         self.filters = config.filters
 
         self.n_filters = len(self.filters)
-        self.conv_layers = [self._create_conv_layers(kernel_size) for kernel_size in self.filters]
-        self.pool_layers = [self._create_pool_layer(kernel_size) for kernel_size in self.filters]
+        self.conv_layers = nn.ModuleList([self._create_conv_layers(kernel_size) for kernel_size in self.filters])
+        self.pool_layers = nn.ModuleList([self._create_pool_layer(kernel_size) for kernel_size in self.filters])
 
         self.cls = nn.Linear(self._get_output_size(), config.num_labels).to(config.device)
 
@@ -46,7 +46,7 @@ class Model(TaskModel):
 
         return output_size
 
-    def forward(self, input_ids):
+    def forward(self, input_ids, **kwargs):
         input_ids = pad_seq_to_length(input_ids, self.config.word_max_length).to(self.config.device)
         embeds = self.emb(input_ids)
         # (N, L, D) -> (N, D, L)
