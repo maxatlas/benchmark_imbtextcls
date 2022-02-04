@@ -3,7 +3,6 @@ import copy
 import torch.nn as nn
 import dill
 import math
-import torch.nn.functional as F
 
 from dataset_utils import get_max_lengths
 

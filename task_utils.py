@@ -1,4 +1,6 @@
 import torch
+import pandas as pd
+import numpy as np
 from sklearn.metrics import (
     f1_score,
     roc_curve,
@@ -18,7 +20,8 @@ def metrics_frame(probs, preds, labels, label_names):
     f1_micro = f1_score(labels, preds, average="micro")
     f1_macro = f1_score(labels, preds, average="macro")
 
-    cr = classification_report(labels, preds, target_names=label_names)
+    cr = classification_report(labels, preds, target_names=label_names, output_dict=True)
+
     fpr, tpr, thresholds, auc_res = [-1] * 4
 
     if len(label_names) == 2:
@@ -34,13 +37,56 @@ def metrics_frame(probs, preds, labels, label_names):
         "Accuracy": accuracy,
         "Precision, Micro": precision_micro,
         "Precision, Macro": precision_macro,
-        "Recall, Micro": recall_micro,
-        "Recall, Macro": recall_macro,
-        "F1 score, Micro": f1_micro,
-        "F1 score, Macro": f1_macro,
+        "Micro-Recall": recall_micro,
+        "Macro-Recall": recall_macro,
+        "Micro-F1": f1_micro,
+        "Macro-F1": f1_macro,
         "ROC curve": (fpr, tpr, thresholds),
         "AUC": auc_res,
         "Classification report": cr,
     }
 
     return model_metrics
+
+
+def get_res_df(info):
+    results = {}
+
+    res = info['result'][-1]
+    task = info['task']
+    model_name = task['model_config']['model_name']
+    data_name = "_".join(task['data_config']['huggingface_dataset_name'])
+
+    num_labels = task['model_config']['num_labels']
+    cr = res["Classification report"]
+    label_names = list(cr.keys())[:num_labels]
+
+    for i, key in enumerate(label_names):
+        results[key] = [cr[key]['f1-score'], int(cr[key]['support'])]
+
+    results["macro"] = [res["Macro-F1"], None]
+    results["micro"] = [res["Micro-F1"], None]
+    results["weighted"] = [cr["weighted avg"]['f1-score'], None]
+    results["accuracy"] = [res['Accuracy'], None]
+
+    data = np.array(list(results.values()))
+
+    header = pd.MultiIndex.from_product([[model_name], ["layer-%i" % task['model_config']['num_layers']], ["f1-score", "support"]],
+                                        names=["Model", "num_layer", "Metrics"])
+    index = pd.MultiIndex.from_product([[data_name], list(results.keys())],
+                                       names=["Dataset", "Categories"])
+    df = pd.DataFrame(data, columns=header, index=index)
+    return df
+
+
+if __name__ == "__main__":
+    import dill
+
+    info = list(dill.load(open(".cache/results/poem_sentiment_balance_strategy_None/han", "rb")).values())[0]
+    df = get_res_df(info)
+
+    info = list(dill.load(open(".cache/results/md_gender_bias", "rb")).values())[0]
+    df1 = get_res_df(info)
+
+    dfs = [df, df1]
+    pd.concat(dfs, axis=0, levels=0)  # different datasets

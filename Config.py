@@ -133,6 +133,7 @@ class ModelConfig:
         self.pretrained_tokenizer_name = pretrained_tokenizer_name
 
         self.lr = lr
+        self.num_layers = n_layers
 
         assert num_labels, "Must specify number of labels (num_labels)."
         assert self.model_name in model_names, \
@@ -212,7 +213,6 @@ class ModelConfig:
                 self.cls_hidden_size = hidden_size
 
                 self.dropout = dropout
-                self.num_layers = n_layers
                 self.activation = activation_function
                 self.tokenizer = None
 

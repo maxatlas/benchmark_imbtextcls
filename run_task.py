@@ -26,8 +26,7 @@ def write_roc_list(debug_list: list, filename: str):
 
 def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
     idx = task.idx()
-
-    folder = "_".join(task.data.huggingface_dataset_name)\
+    folder = "_".join(task.data.huggingface_dataset_name) \
              + "_balance_strategy_%s" % task.data.balance_strategy
     folder = "%s/%s" % (results_folder, folder) if not cache \
         else "%s/%s/%s" % (cache_folder, "results", folder)
@@ -36,7 +35,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
     except FileNotFoundError:
         os.makedirs(folder, exist_ok=True)
 
-    filename = "%s/%s" % (folder, task.model_config["model_name"])
+    filename = "%s/%s" % (folder, "_".join(task.data.huggingface_dataset_name))
     res = {
         idx: {
             "result": [results],
@@ -193,7 +192,7 @@ def main(task: TaskConfig):
         print("Accuracy this epoch: %f" % res["Accuracy"])
         # If the accuracy is lower than half of the previous results ...
         if acc_list and res["Accuracy"] < acc_list[-1]:
-            break
+            continue
 
         acc_list.append(res["Accuracy"])
 
