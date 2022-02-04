@@ -192,6 +192,8 @@ def main(task: TaskConfig):
         print("Accuracy this epoch: %f" % res["Accuracy"])
         # If the accuracy is lower than half of the previous results ...
         if acc_list and res["Accuracy"] < acc_list[-1]:
+            if i > len(acc_list) + 5:
+                break
             continue
 
         acc_list.append(res["Accuracy"])
@@ -204,6 +206,8 @@ def main(task: TaskConfig):
             print("\t Result cached ...")
 
     if not task.test:
+        res['epochs'] = i if i != task.epoch-1 else len(acc_list)
+
         save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
         print("\t Result saved ...")
 
