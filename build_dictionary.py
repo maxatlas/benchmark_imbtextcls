@@ -2,6 +2,7 @@ import dill
 import spacy
 import numpy as np
 import build_model
+import os
 import vars
 from time import time
 from collections import defaultdict
@@ -15,16 +16,12 @@ from vars import cutoff, kvtypes
 
 import gensim.downloader as api
 
-# api.BASE_DIR = vars.hpc_folder+".cache/gensim-data/"
-# api.base_dir = vars.hpc_folder+".cache/gensim-data/"
-# api._create_base_dir()
+api.BASE_DIR = vars.hpc_folder+".cache/gensim-data/"
+api.base_dir = vars.hpc_folder+".cache/gensim-data/"
+api._create_base_dir()
 
-# os.environ['TRANSFORMERS_CACHE'] = vars.hf_cache_folder+"/modules"
-# os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+"/datasets"
-
-
-import nltk
-nltk.download("punkt")
+os.environ['TRANSFORMERS_CACHE'] = vars.hf_cache_folder+"/modules"
+os.environ['HF_DATASETS_CACHE'] = vars.hf_cache_folder+"/datasets"
 
 
 def cache_needed_data():
@@ -39,8 +36,9 @@ def save_all_transformer_emb_layer():
     from Config import ModelConfig
     from model_utils import save_transformer_emb
     names = [("bert", "bert-base-uncased"),
-             ("xlnet", "xlnet-base-cased"),
-             ("roberta", "roberta-base")]
+           ("xlnet", "xlnet-base-cased"),
+           ("gpt2", "gpt2"),
+           ("roberta", "roberta-base")]
     for model_name, pretrained_name in names[-1:]:
         print("\n"+model_name)
         mc = ModelConfig(model_name, 2, pretrained_model_name=pretrained_name)
@@ -65,7 +63,7 @@ def build_emb_layers(count_dict_path):
 
     count_dict = dill.load(open(count_dict_path, "rb"))
 
-    def build_emb_layer(tknwords: list, kv: KeyedVectors, trainable=1):
+    def build_emb_layer(tknwords: set, kv: KeyedVectors, trainable=1):
         def _create_weight_matrix(start_i):
             wm = np.zeros((num_emb, emb_dim))
             for i, word in enumerate(tknwords[start_i:]):
@@ -82,8 +80,7 @@ def build_emb_layers(count_dict_path):
         word_start_i = 2
         emb_layer = nn.Embedding(num_emb, emb_dim)
         emb_layer.load_state_dict({'weight': _create_weight_matrix(word_start_i)})
-        if not trainable:
-            emb_layer.weight.requires_grad = False
+        if not trainable: emb_layer.weight.requires_grad = False
 
         return emb_layer, unfound_words
 
@@ -101,8 +98,7 @@ def build_emb_layers(count_dict_path):
 
     for kvtype in kvtypes:
         print("building embedding layer for %s ..." % kvtype)
-        emb_layer, unfound_words = build_emb_layer(tkndata, get_kv(kvtype))
-        print("emb layer size: %s" % str(emb_layer.weight.shape))
+        emb_layer, unfound_words = build_emb_layer(set(tkndata), get_kv(kvtype))
         dill.dump(unfound_words, open("%s/unfound_words_%s" % (parameter_folder, kvtype), "wb"))
         torch.save(emb_layer.state_dict(), "%s/emb_layer_%s" % (parameter_folder, kvtype))
         print("Done.")
@@ -139,8 +135,8 @@ def nltk_run():
 
 def spacy_run():
     nlp = spacy.load("en_core_web_sm")
-    # tokens_count = defaultdict(int)
-    tokens_count = dill.load(open("%s/word_count_spacy" % vars.parameter_folder, "rb"))
+    tokens_count = defaultdict(int)
+    tokens_count = dill.load(open("%s/word_count_spacy"%vars.parameter_folder, "rb"))
     for i, meta in enumerate(datasets_meta[16:]):
         if meta['huggingface_dataset_name'] == ["lex_glue", "ecthr_b"]:
             continue
@@ -177,9 +173,9 @@ def spacy_run():
 
 
 if __name__ == "__main__":
-    cache_needed_data()
+    # cache_needed_data()
     spacy_run()
-    # nltk_run()
-    # build_emb_layers("%s/word_count_nltk" % parameter_folder)
-    build_emb_layers("%s/word_count_spacy" % parameter_folder)
+    nltk_run()
+    build_emb_layers("%s/word_count_nltk")
+    build_emb_layers("%s/word_count_spacy")
     save_all_transformer_emb_layer()

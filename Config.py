@@ -60,6 +60,7 @@ class DataConfig:
                  balance_strategy=None,
                  threshold=0.6, tolerance=0.3,
                  test=None,
+                 limit=200_000,
                  multi_label=False):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
@@ -89,6 +90,7 @@ class DataConfig:
         self.balance_strategy = balance_strategy
 
         self.test = test
+        self.limit = limit
         self.multi_label = multi_label
 
     def to_dict(self):
@@ -105,7 +107,7 @@ class ModelConfig:
                  device=None,
                  word_max_length=None,
                  hidden_size=100,
-                 word_index_path="%s/word_index" % parameter_folder,
+                 word_index_path=None,
                  emb_path=None,
                  n_layers=1,
                  activation_function="gelu",
@@ -180,16 +182,12 @@ class ModelConfig:
 
                     self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
 
+                    word_max_length = 512
+
                     if self.tokenizer_name == "bert" or self.tokenizer_name == "roberta":
                         emb_d = 768
-                        word_max_length = 512
                     elif self.tokenizer_name == "gpt2" or self.tokenizer_name == "xlnet":
                         emb_d = 768
-                        if self.tokenizer_name == "gpt2":
-                            word_max_length = 1024
-                        else:
-                            word_max_length = 1024 if model_name == "gpt2" else 512
-
 
                     if model_name == "bert" or model_name == "roberta":
                         self.hidden_size = emb_d
@@ -211,7 +209,6 @@ class ModelConfig:
                 model_config(self, padding, dilation, stride, filters, hidden_size)
 
                 self.emb_path = emb_path
-                self.word_index_path = word_index_path
                 self.cls_hidden_size = hidden_size
 
                 self.dropout = dropout
@@ -222,10 +219,15 @@ class ModelConfig:
                 if pretrained_tokenizer_name:  # with pretrained tokenizer.
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
-                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
-                    self.emb_path = "%s/emb_layer_%s" % (parameter_folder, self.tokenizer_name)
+                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name) \
+                        if not tokenizer_name else tokenizer_name
+                    self.emb_path = "%s/emb_layer_%s" % (parameter_folder,
+                                                         get_tokenizer_name(pretrained_tokenizer_name))
 
                 else:
+                    if not word_index_path:
+                        word_index_path = "% s / word_index" % parameter_folder
+                    self.word_index_path = word_index_path
                     if tokenizer_name in transformer_names:
                         raise NotImplementedError("Customized transformer tokenizers not implemented.")
                         # tokenizer_config(self)
@@ -236,15 +238,14 @@ class ModelConfig:
                             "tokenizer_name,\n\t\t" \
                             "word_index path."
 
-                        assert tokenizer_name in ["spacy", "spacy-sent", "nltk",
-                                                  "nltk-sent"], \
+                        assert "sent" in tokenizer_name, \
                             "%s model requires a tokenizer (spacy/nltk/bert/gpt2/roberta/xlnet)." % model_name
                         self.tokenizer_name = tokenizer_name
 
                         if model_name == "han":
-                            assert tokenizer_name in ["nltk-sent", "spacy-sent"], "HAN classifier requires " \
-                                                                                  "sentence tokenizer. " \
-                                                                                  "(nltk-sent or spacy-sent)"
+                            assert "sent" in tokenizer_name, "HAN classifier requires " \
+                                                             "sentence tokenizer. " \
+                                                             "(nltk-sent or spacy-sent)"
                         else:
                             assert word_max_length, "Customized non transformer models require " \
                                                     "word_max_length specified."
@@ -312,6 +313,9 @@ class TaskConfig:
         return self
 
     def to_dict(self):
+        self.model_config = self.model.to_dict()
+        self.data_config = self.data.to_dict()
+
         task = copy.deepcopy(self.__dict__)
 
         task['loss_func'] = str(task['loss_func'])

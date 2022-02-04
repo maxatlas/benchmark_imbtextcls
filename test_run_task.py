@@ -64,7 +64,8 @@ md = {
     "tokenizer_name": tokenizer_name,
     "pretrained_model_name": pretrained_model_name,
     "pretrained_tokenizer_name": pretrained_tokenizer_name,
-    "emb_path": emb_path
+    "emb_path": emb_path,
+    "n_layers": 2,
 }
 
 optimizer = torch.optim.AdamW

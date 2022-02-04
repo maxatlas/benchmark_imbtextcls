@@ -40,7 +40,7 @@ class Model(GPT2PreTrainedModel):
     def forward(self, texts, **kwargs):
         max_length = self.config.n_positions
 
-        out = self.tokenizer.core(texts)
+        out = self.tokenizer(texts)
         input_ids, attention_mask, token_type_ids = out['input_ids'], \
                                                     out.get("attention_mask"), \
                                                     out.get("token_type_ids")

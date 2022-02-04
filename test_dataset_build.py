@@ -3,7 +3,7 @@ from Config import DataConfig
 from torch.utils.data import DataLoader
 from vars import *
 
-dataset_i = 3
+dataset_i = 10
 dd = datasets_meta[dataset_i]
 dc = DataConfig(**dd)
 train_tds, _, _, split_info = build_dataset.main(dc)

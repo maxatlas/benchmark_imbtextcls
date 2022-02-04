@@ -38,7 +38,7 @@ class Model(XLNetPreTrainedModel):
     ):
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
-        out = self.tokenizer.core(texts)
+        out = self.tokenizer(texts)
         input_ids, attention_mask, token_type_ids = out['input_ids'], \
                                                     out.get("attention_mask"), \
                                                     out.get("token_type_ids")

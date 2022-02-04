@@ -36,7 +36,7 @@ class Model(BertPreTrainedModel):
     def forward(self, texts, **kwargs):
         max_length = self.config.max_position_embeddings
 
-        out = self.tokenizer.core(texts)
+        out = self.tokenizer(texts)
         input_ids, token_type_ids, attention_mask = out['input_ids'], \
                                                     out.get('token_ids'), \
                                                     out['attention_mask']

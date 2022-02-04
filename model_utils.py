@@ -11,7 +11,7 @@ from dataset_utils import get_max_lengths
 class Classifier(nn.Module):
     def __init__(self, config):
         super(Classifier, self).__init__()
-        self.layer = nn.Linear(config.hidden_size, config.num_labels)
+        self.layer = nn.Linear(config.hidden_size, config.num_labels).to(config.device)
         # can add layernorm, dropout etc. so that it's cleaner on the final model's side.
 
     def forward(self, x):
@@ -55,7 +55,8 @@ class TaskModel(nn.Module):
 
         self.cls = nn.Linear(config.cls_hidden_size, config.num_labels).to(config.device)
 
-        self.word_index = dill.load(open(config.word_index_path, "rb"))
+        if "word_index_path" in config.to_dict():
+            self.word_index = dill.load(open(config.word_index_path, "rb"))
 
         self.tokenizer = None
 
@@ -94,14 +95,11 @@ class TaskModel(nn.Module):
         label_ids = label_ids.float()
 
         if multi_label:
-            label_ids = label_ids.to(self.config.device)
             loss = loss_func(logits.view(-1, len(label_names)),
                              label_ids.view(-1, len(label_names)).
                              type_as(logits.view(-1, len(label_names)))
                              )
         else:
-            print(logits.shape)
-            print(label_ids.shape)
             loss = loss_func(logits, label_ids.to(self.config.device))
 
         return loss
@@ -119,13 +117,13 @@ class TaskModel(nn.Module):
 
         with torch.no_grad():
             logits, preds = self.forward(token_ids)
+            probs = torch.sigmoid(logits)
             if multi_label:
-                probs = torch.sigmoid(logits)
                 preds = (probs > 0.5).long()
             else:
                 preds = get_label_ids(preds.tolist(), label_names).long()
             labels = torch.tensor(labels).long()
-        return preds, labels
+        return probs, preds, labels
 
 
 def get_label_ids(labels, label_names):
@@ -161,13 +159,13 @@ def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
 def batch_eval(self, texts, labels, label_names, multi_label):
     with torch.no_grad():
         logits, preds = self.forward(texts)
+        probs = torch.sigmoid(logits)
         if multi_label:
-            probs = torch.sigmoid(logits)
             preds = (probs > 0.5).long()
         else:
             preds = get_label_ids(preds.tolist(), label_names)
         labels = torch.tensor(labels).long()
-    return preds, labels
+    return probs, preds, labels
 
 
 def pad_seq(text_ids, length_limit=None):
@@ -217,3 +215,9 @@ def save_transformer_emb(model, model_name):
     torch.save(emb, "params/emb_layer_%s" % model_name)
 
 
+def merge_trans_sent(res):
+    d = {}
+    keys = res[0][0].keys()
+    for key in keys:
+        d[key] = [[sent[key] for sent in doc] for doc in res]
+    return d

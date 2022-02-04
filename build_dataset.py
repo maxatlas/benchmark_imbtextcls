@@ -16,11 +16,13 @@ import pandas as pd
 class TaskDataset:
     def __init__(self, data: DataFrame, label_feature: ClassLabel, config: DataConfig):
         self.info = config
+        for key in config.text_fields:
+            data[key] = data[key].astype(str)
         self.data = data[[text_field for text_field in config.text_fields]].agg('\n'.join, axis=1)
         self.label_feature = label_feature if type(label_feature) is ClassLabel else label_feature[0]
         self.multi_label = type(label_feature) is list
         self.labels = data[config.label_field].map(
-                lambda x: get_label_ids(x, self.label_feature.names))
+            lambda x: get_label_ids(x, self.label_feature.names))
 
     def __len__(self):
         return len(self.data)
@@ -53,7 +55,7 @@ def split_df(df: DataFrame,
 
     if type(label_features) is ClassLabel:
         count_dict = {i: len(df.loc[df[config.label_field] == i])
-                  for i in range(label_features.num_classes)}
+                      for i in range(label_features.num_classes)}
 
         train_dict, test_dict, val_dict = set_imb_count_dict(
             count_dict, config.imb_tolerance, config.imb_threshold,
@@ -100,7 +102,9 @@ def main(config: DataConfig):
             df.loc[(df[config.label_field] < 0.5), 'label'] = 0
             df[config.label_field] = df[config.label_field].astype("int32")
 
-        label_features = ClassLabel(names=list(set(df[config.label_field].values)))
+        names = list(set(df[config.label_field].values))
+        names = [str(i) for i in names]
+        label_features = ClassLabel(names=names)
         replace_dict = {name: label_features.names.index(name) for name in label_features.names}
         df = df.replace(replace_dict)
     elif type(label_features) is Sequence:
@@ -109,6 +113,7 @@ def main(config: DataConfig):
     train, test, val, split_info = split_df(df, label_features, config)
 
     print(split_info)
+    train, test, val = train[:config.limit], test[:config.limit], val[:config.limit]
     train, test, val = train[:config.test], test[:config.test], val[:config.test]
     train, test, val = TaskDataset(train, label_features, config), \
                        TaskDataset(test, label_features, config), \

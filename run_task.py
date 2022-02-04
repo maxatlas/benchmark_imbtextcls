@@ -13,35 +13,24 @@ from tqdm import tqdm
 from Config import (TaskConfig,
                     DataConfig,)
 from torch.utils.data import DataLoader
-
-
 from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
 
-torch.cuda.empty_cache()
 
-
-def write_debug_list(debug_list:list, filename:str):
+def write_roc_list(debug_list: list, filename: str):
     file = open(filename, "a")
-    for l in debug_list:
-        file.write(str(l))
+    file.writelines(debug_list)
     file.close()
 
 
-def save_result(task: TaskConfig, results: dict, debug_list: list):
-    """
-    Under folder of dataset name and balance strategy
-    filename is model name _task.idx()
-    append, if filename exists
-    :param task:
-    :param results:
-    :return:
-    """
+def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
+    idx = task.idx()
 
     folder = "_".join(task.data.huggingface_dataset_name)\
-                  + "_balance_strategy_%s" % task.data.balance_strategy
-    folder = "%s/%s" % (results_folder, folder)
+             + "_balance_strategy_%s" % task.data.balance_strategy
+    folder = "%s/%s" % (results_folder, folder) if not cache \
+        else "%s/%s/%s" % (cache_folder, "results", folder)
     try:
         os.listdir(folder)
     except FileNotFoundError:
@@ -49,30 +38,45 @@ def save_result(task: TaskConfig, results: dict, debug_list: list):
 
     filename = "%s/%s" % (folder, task.model_config["model_name"])
     res = {
-        task.idx(): {
-            "model": task.model_config,
-            "result": results,
+        idx: {
+            "result": [results],
             "task": task.to_dict()
         }
     }
 
-    try:
-        ress = dill.load(open(filename, "rb"))
-        ress.update(res)
+    roc_res = {
+        idx: roc_list
+    }
 
-        dill.dump(ress, open(filename, "wb"))
-        json.dump(str(res), open(filename+".json", "a"))
-        write_debug_list(debug_list, filename+".debug")
+    print(res)
+
+    try:
+        results = dill.load(open(filename, "rb"))
+        if idx in results:
+            results[idx]['result'].extend(res[idx]['result'])
+        else:
+            results.update(res)
+        dill.dump(results, open(filename, "wb"))
+        json.dump(results, open(filename+".json", "w"))
+
+        roc_results = dill.load(open(filename + ".roc", "rb"))
+        if idx in roc_results:
+            roc_results[idx][0].extend(roc_res[idx][0])
+            roc_results[idx][1].extend(roc_res[idx][1])
+        else:
+            roc_results.update(res)
+        dill.dump(roc_results, open(filename + ".roc", "wb"))
+
     except FileNotFoundError:
         dill.dump(res, open(filename, "wb"))
-        json.dump(str(res), open(filename+".json", "w"))
-        write_debug_list(debug_list, filename+".debug")
+        json.dump(res, open(filename + ".json", "w"))
+        dill.dump(roc_res, open(filename + ".roc", "wb"))
         
 
 def load_cache(config: dict):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
 
-    filename = "%s/%s" % (cache_folder, idx)
+    filename = "%s/%s/%s" % (cache_folder, "exp", idx)
     try:
         return dill.load(open(filename, "rb"))
     except FileNotFoundError:
@@ -83,7 +87,7 @@ def cache(config: dict, data):
     print(str(config))
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
     print(idx)
-    filename = "%s/%s" % (cache_folder, idx)
+    filename = "%s/%s/%s" % (cache_folder, "exp", idx)
     try:
         dill.dump(data, open(filename, 'wb'))
     except FileNotFoundError:
@@ -119,6 +123,9 @@ def main(task: TaskConfig):
         word_max_length, sent_max_length = get_max_lengths(data[0].data)
         if not word_max_length:
             word_max_length = sent_max_length
+
+        word_max_length = 512 if word_max_length > 512 else word_max_length
+
         task.model_config["word_max_length"] = word_max_length
     model_card = task().model
 
@@ -131,6 +138,7 @@ def main(task: TaskConfig):
 
     train_tds, test_tds, val_tds, split_info = data
 
+    task.data.split_info = split_info
     train_dl = DataLoader(train_tds, batch_size=task.batch_size, shuffle=True)
     test_dl = DataLoader(test_tds, batch_size=task.batch_size, shuffle=True)
     # val_dl = DataLoader(val_tds, batch_size=task.batch_size, shuffle=True)
@@ -138,13 +146,15 @@ def main(task: TaskConfig):
     optimizer = task.optimizer(model.parameters(), lr=model_card.lr)
 
     print("\t Training ...")
-
     clocks = 0
 
-    preds_eval, labels_eval = None, None
+    acc_list = []
 
-    print(task.epoch)
     for i in range(task.epoch):
+        torch.cuda.empty_cache()
+
+        probs_test, preds_test, labels_test = None, None, None
+
         print("\t epoch %s" % str(i))
 
         model.train()
@@ -161,38 +171,47 @@ def main(task: TaskConfig):
         print("Epoch %i finished." % i)
         clocks += time() - clock_start
 
+        label_feature = test_tds.label_feature
+
         print("\t Evaluating ...")
         model.eval()
         for batch in tqdm(test_dl, desc="Iteration"):
             texts, labels = batch
             labels = labels.tolist()
-            label_feature = test_tds.label_feature
-            preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
-            if preds_eval is None and labels_eval is None:
-                preds_eval, labels_eval = preds.cpu().numpy(), labels.cpu().numpy()
+            probs, preds, labels = model.batch_eval(texts, labels, label_feature.names, test_tds.multi_label)
+            if preds_test is None and labels_test is None:
+                probs_test, preds_test, labels_test = probs.cpu().numpy(), preds.cpu().numpy(), labels.cpu().numpy()
             else:
-                preds_eval = np.append(preds_eval, preds.cpu().numpy(), axis=0)
-                labels_eval = np.append(labels_eval, labels.cpu().numpy(), axis=0)
+                probs_test = np.append(probs_test, preds.cpu().numpy(), axis=0)
+                preds_test = np.append(preds_test, preds.cpu().numpy(), axis=0)
+                labels_test = np.append(labels_test, labels.cpu().numpy(), axis=0)
 
-        debug_list = list(zip(labels_eval, preds_eval))
-        res = metrics_frame(preds_eval, labels_eval,
-                            label_feature.names)
+        res = metrics_frame(probs_test, preds_test, labels_test, label_feature.names)
+
+        print("\tAccuracy so far:")
+        print(acc_list)
+        print("Accuracy this epoch: %f" % res["Accuracy"])
+        # If the accuracy is lower than half of the previous results ...
+        if acc_list and res["Accuracy"] < acc_list[-1]:
+            break
+
+        acc_list.append(res["Accuracy"])
 
         res['seconds_avg_epoch'] = clocks / (i + 1)
-        res['split_info'] = split_info
         print(res['Classification report'])
 
         if not task.test:
-            save_result(task, res, debug_list)
-            print("\t Result saved ...")
+            save_result(task, res, [probs_test.tolist(), preds_test.tolist()], cache=True)
+            print("\t Result cached ...")
 
-            train_folder = "%s/%s" % (vars.trained_model_folder,
-                                      task.model.model_name)
-            os.makedirs(train_folder, exist_ok=True)
+    if not task.test:
+        save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
+        print("\t Result saved ...")
 
-            torch.save(model, "%s/%s" % (train_folder,
-                                         task.idx()))
-            print("\t Model saved ...")
+        train_folder = "%s/%s" % (vars.trained_model_folder,
+                                  task.model.model_name)
+        os.makedirs(train_folder, exist_ok=True)
 
-
-
+        torch.save(model, "%s/%s" % (train_folder,
+                                     task.idx()))
+        print("\t Model saved ...")

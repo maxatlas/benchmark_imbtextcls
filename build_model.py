@@ -7,15 +7,14 @@ from nltk.tokenize import sent_tokenize, word_tokenize
 from Config import ModelConfig
 from vars import (transformer_names,)
 
+from model_utils import merge_trans_sent
+
 
 class Tokenizer:
     def __init__(self, name, pretrained_model_name="", vocab_file=None):
         assert not (pretrained_model_name and vocab_file), \
             "Either provide vocab file for non-pretrained tokenizer or provide " \
             "the pretrained tokenizer without vocab file."
-        assert name in ["spacy", "spacy-sent", "nltk", "nltk-sent", "bert", "gpt2", "xlnet", "roberta"], \
-            "Tokenizer name needs to be one of the following:" \
-            "\n\t\tspacy\n\t\tspacy_sent\n\t\tnltk\n\t\tnltk_sent\n\t\tbert\n\t\tgpt2\n\t\txlnet\n\t\troberta"
 
         self.name = name.lower()
         self.core = None
@@ -26,22 +25,22 @@ class Tokenizer:
         elif name == "nltk":
             self.core = word_tokenize
 
-        elif name == "bert":
+        elif "bert" in name:
             from transformers import BertTokenizer
             self.core = BertTokenizer.from_pretrained(pretrained_model_name) \
                 if pretrained_model_name else BertTokenizer(vocab_file, do_lower_case=True)
 
-        elif name == "gpt2":
+        elif "gpt2" in name:
             from transformers import GPT2Tokenizer
             self.core = GPT2Tokenizer.from_pretrained(pretrained_model_name) \
                 if pretrained_model_name else GPT2Tokenizer(vocab_file, do_lower_case=True)
 
-        elif name == "xlnet":
+        elif "xlnet" in name:
             from transformers import XLNetTokenizer
             self.core = XLNetTokenizer.from_pretrained(pretrained_model_name) \
                 if pretrained_model_name else XLNetTokenizer(vocab_file, do_lower_case=True)
 
-        elif name == "roberta":
+        elif "roberta" in name:
             from transformers import RobertaTokenizer
             self.core = RobertaTokenizer.from_pretrained(pretrained_model_name) \
                 if pretrained_model_name else RobertaTokenizer(vocab_file, do_lower_case=True)
@@ -49,14 +48,20 @@ class Tokenizer:
     def __call__(self, texts):
         texts = preprocess_texts(texts)
         docs = None
-        if self.name == "spacy":
+        names = self.name.split("-")
+
+        if names[-1] == "sent":
+            if names[0] in transformer_names:
+                docs = [[self.core(sent) for sent in sent_tokenize(doc)] for doc in texts]
+                docs = merge_trans_sent(docs)
+            elif names[0] == "nltk":
+                docs = [[self.core(sent) for sent in sent_tokenize(doc)] for doc in texts]
+            elif names[0] == "spacy":
+                docs = self.core.pipe(texts, n_process=4, disable=["tok2vec", "transformer"])
+                docs = [[[tok.text for tok in sent] for sent in doc.sents] for doc in docs]
+        if names[0] == "spacy":
             docs = self.core.pipe(texts, n_process=4, disable=["tok2vec", "transformer"])
             docs = [[tok.text for tok in doc] for doc in docs]
-        elif self.name == "spacy-sent":
-            docs = self.core.pipe(texts, n_process=4, disable=["tok2vec", "transformer"])
-            docs = [[[tok.text for tok in sent] for sent in doc.sents] for doc in docs]
-        elif self.name == "nltk-sent":
-            docs = [[word_tokenize(sent) for sent in sent_tokenize(doc)] for doc in texts]
         elif self.name == "nltk":
             docs = [self.core(text) for text in texts]
         elif self.name in transformer_names:

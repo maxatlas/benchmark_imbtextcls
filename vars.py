@@ -3,7 +3,7 @@ current = hpc_folder
 current = ""
 parameter_folder = "%sparams" % current
 results_folder = "%sresults" % current
-cache_folder = "%s.cache/exp" % current
+cache_folder = "%s.cache" % current
 trained_model_folder = "%strained" % current
 
 hf_cache_folder = "%s.cache/huggingface" % current
@@ -211,6 +211,15 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.4,
     "sample_ratio_to_imb": 0.42,
     },
+
+{
+    "huggingface_dataset_name": ["amazon_polarity"],
+    "label_field": "label",
+    "text_fields": ["title", "content"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.53,
+    },
+
 {
     "huggingface_dataset_name": ["lex_glue", "ecthr_a"],
     "label_field": "labels",
@@ -233,14 +242,6 @@ datasets_meta = [
     "huggingface_dataset_name": ["lex_glue", "scotus"],
     "label_field": "label",
     "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.53,
-    },
-
-{
-    "huggingface_dataset_name": ["amazon_polarity"],
-    "label_field": "label",
-    "text_fields": ["title", "content"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.53,
     },
