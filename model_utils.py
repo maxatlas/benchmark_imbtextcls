@@ -8,16 +8,50 @@ import torch.nn.functional as F
 from dataset_utils import get_max_lengths
 
 
+class Classifier(nn.Module):
+    def __init__(self, config):
+        super(Classifier, self).__init__()
+        self.layer = nn.Linear(config.hidden_size, config.num_labels)
+        # can add layernorm, dropout etc. so that it's cleaner on the final model's side.
+
+    def forward(self, x):
+        out = self.layer(x)
+        return out
+
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    @staticmethod
+    def forward(x):
+        return x
+
+
+class Identity2(nn.Module):
+    def __init__(self):
+        super(Identity2, self).__init__()
+
+    @staticmethod
+    def forward(x, y):
+        out = x + y
+        return out
+
+
 class TaskModel(nn.Module):
     def __init__(self, config):
         super(TaskModel, self).__init__()
         self.config = config
 
-        emb_weights = torch.load(config.emb_path)
+        emb_obj = dill.load(open(config.emb_path, "rb"))
+        self.emb = emb_obj['word'].to(config.device)
 
-        vocab_size, self.emb_d = emb_weights['weight'].shape
-        self.emb = nn.Embedding(vocab_size, self.emb_d).to(config.device)
-        self.emb.load_state_dict(emb_weights)
+        self.pos_emb = emb_obj.get('pos')
+
+        if self.pos_emb:
+            self.pos_emb.to(config.device)
+
+        vocab_size, self.emb_d = self.emb.weight.shape
 
         self.cls = nn.Linear(config.cls_hidden_size, config.num_labels).to(config.device)
 
@@ -52,20 +86,22 @@ class TaskModel(nn.Module):
                 token_ids = [[[self.word_index.get(word, 0) for word in sent] for sent in doc] for doc in tokens]
             else:
                 token_ids = [[self.word_index.get(word, 0) for word in doc] for doc in tokens]
+            logits, _ = self.forward(token_ids)
         else:
             token_ids = tokens['input_ids']
+            logits, _ = self.forward(token_ids)
 
-        logits, _ = self.forward(token_ids)
         label_ids = label_ids.float()
 
         if multi_label:
-
             label_ids = label_ids.to(self.config.device)
             loss = loss_func(logits.view(-1, len(label_names)),
                              label_ids.view(-1, len(label_names)).
                              type_as(logits.view(-1, len(label_names)))
                              )
         else:
+            print(logits.shape)
+            print(label_ids.shape)
             loss = loss_func(logits, label_ids.to(self.config.device))
 
         return loss
@@ -179,3 +215,5 @@ def save_transformer_emb(model, model_name):
     i = 1 if model_name == "xlnet" else 0
     emb = load_transformer_emb(model, i)
     torch.save(emb, "params/emb_layer_%s" % model_name)
+
+
