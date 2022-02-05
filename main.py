@@ -40,13 +40,22 @@ if __name__ == "__main__":
                         '-s',
                         type=float,
                         default=0.05)
+    parser.add_argument("--scenario",
+                        type=int,
+                        default=1)
 
     args = parser.parse_args()
     dc = vars.datasets_meta[args.dataset_i]
 
     print("Pretrained models ...")
 
-    tasks = taskcards.scenario_1(dc, args)
+    scene = taskcards.scenario_1
+    if args.scenario == 2:
+        scene = taskcards.scenario_2
+    elif args.scenario == 3:
+        scene = taskcards.scenario_3
+
+    tasks = scene(dc, args)
 
     for task in tasks:
         try:

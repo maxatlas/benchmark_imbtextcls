@@ -12,7 +12,7 @@ model_names = ["bert", "xlnet", "gpt2",
                "lstm", "lstmattn", "cnn", "rcnn", "mlp", "han"]
 transformer_names = model_names[:3]
 transformer_pretrain = \
-    ["bert-base-uncased", "xlnet-base-cased", "roberta-base", "gpt2"]
+    ["bert-base-uncased", "xlnet-base-cased", "gpt2"]
 customized_model_names = model_names[4:]
 
 customized_tokenizer_names = ["nltk", "spacy"]

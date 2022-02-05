@@ -14,7 +14,7 @@ class Model(TaskModel):
         self.word_max_length = config.word_max_length
         self.stride = config.stride
 
-        self.filters = config.filters[:config.num_layers]
+        self.filters = torch.arange(2, (config.num_layers * 2) + 2)
 
         self.n_filters = len(self.filters)
         self.conv_layers = nn.ModuleList([self._create_conv_layers(kernel_size) for kernel_size in self.filters])

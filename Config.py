@@ -122,7 +122,7 @@ class ModelConfig:
                  disable_output=True,
                  disable_selfoutput=True,
                  disable_intermediate=True,
-                 add_pooling_layer=True,
+                 add_pooling_layer=False,
                  n_heads=1,
                  ):
 
