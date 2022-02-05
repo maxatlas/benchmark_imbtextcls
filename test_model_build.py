@@ -33,7 +33,7 @@ if __name__ == "__main__":
     labels = torch.tensor(labels)
 
     print("Scenario 0. HAN")
-    model_name = "mlp"
+    model_name = "cnn"
     tokenizer = "bert"
     word_max_length = 50
 
@@ -41,13 +41,14 @@ if __name__ == "__main__":
                      tokenizer_name=tokenizer,
                      pretrained_tokenizer_name="bert-base-uncased",
                      word_max_length=word_max_length,
-                     emb_path="%sparams/emb_layer_bert" % vars.current)
+                     emb_path="%sparams/emb_layer_bert" % vars.current,
+                     n_layers=3)
 
     model = build_model.main(mc)
 
     out = model.batch_train(texts, labels, train_df.label_feature.names, loss_func=BCEWithLogitsLoss(),
                             multi_label=False)
-    out = metrics_frame(out[0], out[1], out[2], train_df.label_feature.names)
+    print(out)
 
     print("Scenario 1. Pretrained model.")
     model_name = "bert"

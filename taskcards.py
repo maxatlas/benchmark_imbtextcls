@@ -7,7 +7,8 @@ from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
 def scenario_1(dc: dict, args):
     task_cards = []
     loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
-    for model in list(vars.model_names):
+    models = list(vars.model_names)[1:]
+    for model in models:
 
         mc = {
             "model_name": model,

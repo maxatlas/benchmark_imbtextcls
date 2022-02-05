@@ -192,7 +192,7 @@ def main(task: TaskConfig):
 
         # If the accuracy is lower than half of the previous results ...
         if acc_list and res["Accuracy"] <= acc_list[-1]:
-            threshold = len(acc_list) + int(task.epoch * float(task.early_stop_alpha))
+            threshold = len(acc_list) - 1 + int(task.epoch * float(task.early_stop_alpha))
             print("###################%i %i#######################" % (i, threshold))
             if i >= threshold:
                 break

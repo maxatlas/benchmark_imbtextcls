@@ -14,7 +14,7 @@ class Model(TaskModel):
         self.word_max_length = config.word_max_length
         self.stride = config.stride
 
-        self.filters = config.filters
+        self.filters = config.filters[:config.num_layers]
 
         self.n_filters = len(self.filters)
         self.conv_layers = nn.ModuleList([self._create_conv_layers(kernel_size) for kernel_size in self.filters])
