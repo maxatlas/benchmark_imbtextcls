@@ -11,7 +11,7 @@ class Model(TaskModel):
 
         self.lstm = nn.LSTM(self.emb_d, config.cls_hidden_size,
                             batch_first=True, num_layers=config.num_layers, ).to(self.config.device)
-        self.cls = nn.Linear(config.cls_hidden_size, config.num_labels).to(self.config.device)
+        self.cls = nn.Linear(config.cls_hidden_size * config.num_layers, config.num_labels).to(self.config.device)
         self.dropout = nn.Dropout(config.dropout).to(self.config.device)
 
     @staticmethod
@@ -28,7 +28,7 @@ class Model(TaskModel):
 
         embeds = self.emb(input_ids)
         out = self.lstm(embeds)
-        out = self.pay_attn(out)
+        out = self.pay_attn(out).view(input_ids.size(0), -1)
 
         logits = self.cls(out)
         preds = torch.argmax(logits, dim=1)  # TODO dim index out of range??
