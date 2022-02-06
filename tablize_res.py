@@ -3,6 +3,7 @@ import dill
 import vars
 import pandas as pd
 
+from typing import List
 from pathlib import Path
 from task_utils import get_res_df
 
@@ -23,25 +24,27 @@ def get_res(data: str, model: str,
             return res
 
 
-def get_res_2d(pretrained_model: str,
-               pretrained_tokenizer: str,
-               size: int,
-               datasets: list = [],
-               models: list = []):
+def get_df_2d(pretrained_tokenizers: List[str],
+              sizes: List[int],
+              pretrained_model: str = "",
+              datasets: list = None,
+              models: list = None):
     if not datasets:
         datasets = os.listdir(vars.results_folder)
     if not models:
         models = vars.model_names
 
     by_data = []
+    size_pretrain = list(zip(sizes, pretrained_tokenizers))
     for data in datasets:
         by_model = []
         for model in models:
-            # print(data, model)
-            by_model.append(get_res_df(get_res(data, model, pretrained_model, pretrained_tokenizer, size)))
-
+            for size, pretrained_tokenizer in size_pretrain:
+                res = get_res_df(get_res(data, model, pretrained_model, pretrained_tokenizer, size))
+                by_model.append(res)
         by_model = pd.concat(by_model, axis=1, levels=0)
         by_data.append(by_model)
+
     by_data = pd.concat(by_data, axis=0, levels=0)
 
     return by_data
@@ -49,7 +52,7 @@ def get_res_2d(pretrained_model: str,
 
 if __name__ == "__main__":
     suffix = "_balance_strategy_None"
-    df = get_res_2d("", "bert-base-uncased", 1, ["sms_spam_balance_strategy_None", "sst_balance_strategy_None", "ade_corpus_v2_Ade_corpus_v2_classification_balance_strategy_None"],
+    df = get_df_2d(["bert-base-uncased", "xlnet-base-cased", "gpt2"], [1, 3, 5], "", ["sst_balance_strategy_None", "sms_spam_balance_strategy_None", "ade_corpus_v2_Ade_corpus_v2_classification_balance_strategy_None"],
                     ["bert", ])
                      # "gpt2","xlnet", "lstm", "lstmattn", "cnn", "rcnn", "han", "mlp"])
     with pd.option_context('display.max_rows', None,

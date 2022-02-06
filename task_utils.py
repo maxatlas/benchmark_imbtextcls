@@ -61,7 +61,7 @@ def merge_res(results):
         if type(values[0]) is pd.core.frame.DataFrame:
             out[key] = (sum(values)/len(values)).to_dict()
         else:
-            if key == "ROC curve" and type(values) == tuple:
+            if key == "ROC curve" and type(values[0]) == tuple:
                 values = values[0]
             values = torch.tensor(values).view(-1)
             value = sum(values)/len(values)
@@ -101,6 +101,7 @@ def get_res_df(info):
                                        names=["Dataset", "Categories"])
     df = pd.DataFrame(data, columns=header, index=index)
     return df
+
 
 
 if __name__ == "__main__":

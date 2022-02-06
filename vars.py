@@ -6,6 +6,15 @@ results_folder = "%sresults" % current
 cache_folder = "%s.cache" % current
 trained_model_folder = "%strained" % current
 
+balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
+               "ag_news", "amazon_reviews_multi", "dbpedia_14",
+               "yelp_review_full", "yahoo_answers_topics",
+               "amazon_polarity", "banking77", "amazon_reviews_multi_en"]
+imb_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola", "lex_glue_ecthr_a",
+          "lex_glue_ecthr_b", "hate_speech18","emotion", "ade_corpus_v2_Ade_corpus_v2_classification",
+          "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
+dataset_names = balanced_ds + imb_ds
+
 hf_cache_folder = "%s.cache/huggingface" % current
 
 model_names = ["bert", "xlnet", "gpt2",
