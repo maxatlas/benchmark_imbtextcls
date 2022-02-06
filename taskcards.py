@@ -1,7 +1,37 @@
+
 import torch
 import vars
 
 from torch.nn import BCEWithLogitsLoss, CrossEntropyLoss
+
+
+def scenario_0(dc: dict, args):
+    task_cards = []
+    loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
+    models = list(vars.model_names)
+    models = ["cnn", "lstmattn"]
+    for model in models:
+
+        mc = {
+            "model_name": model,
+            "pretrained_tokenizer_name": args.tokenizer_pretrained,
+            "n_layers": args.layers,
+        }
+        tc = {
+            "data_config": dc,
+            "model_config": mc,
+            "batch_size": 100,
+            "loss_func": loss(),
+            "device": args.device,
+            "optimizer": torch.optim.AdamW,
+            "test": args.test if args.test else None,
+            "epoch": args.epoch,
+            "early_stop_epoch": args.early_stop_epoch,
+        }
+
+        task_cards.append(tc)
+
+    return task_cards
 
 
 def scenario_1(dc: dict, args):
@@ -24,7 +54,7 @@ def scenario_1(dc: dict, args):
             "optimizer": torch.optim.AdamW,
             "test": args.test if args.test else None,
             "epoch": args.epoch,
-            "early_stop_alpha": args.early_stop_alpha,
+            "early_stop_epoch": args.early_stop_epoch,
         }
 
         task_cards.append(tc)
@@ -40,7 +70,7 @@ def scenario_2(dc: dict, args):
 
         mc = {
             "model_name": model,
-            "pretrained_model_name": pretrained_name
+            "pretrained_model_name": pretrained_name,
         }
 
         tc = {
@@ -52,7 +82,7 @@ def scenario_2(dc: dict, args):
             "optimizer": torch.optim.AdamW,
             "test": args.test if args.test else None,
             "epoch": args.epoch,
-            "early_stop_alpha": args.early_stop_alpha,
+            "early_stop_epoch": args.early_stop_epoch,
         }
 
         task_cards.append(tc)
@@ -69,6 +99,10 @@ def scenario_3(dc: dict, args):
             "model_name": model,
             "pretrained_tokenizer_name": pretrained_name,
             "n_layers": args.layers,
+            "disable_output": False,
+            "disable_intermediate": False,
+            "disable_selfoutput": False,
+            "enable_pooler": True,
         }
 
         tc = {
@@ -80,7 +114,7 @@ def scenario_3(dc: dict, args):
             "optimizer": torch.optim.AdamW,
             "test": args.test if args.test else None,
             "epoch": args.epoch,
-            "early_stop_alpha": args.early_stop_alpha,
+            "early_stop_epoch": args.early_stop_epoch,
         }
 
         task_cards.append(tc)

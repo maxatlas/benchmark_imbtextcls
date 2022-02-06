@@ -20,7 +20,7 @@ def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenize
 
 
 if __name__ == "__main__":
-    dataset_i = 0
+    dataset_i = 5
     test = None
     dc = DataConfig(**datasets_meta[dataset_i])
     train_df, _, _, _ = build_dataset.main(dc)
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     labels = torch.tensor(labels)
 
     print("Scenario 0. HAN")
-    model_name = "cnn"
+    model_name = "lstmattn"
     tokenizer = "bert"
     word_max_length = 50
 

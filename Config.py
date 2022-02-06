@@ -297,7 +297,7 @@ class TaskConfig:
                  test=None,
                  epoch: int = 1,
                  freeze_emb : bool = True,
-                 early_stop_alpha: float = 0.05
+                 early_stop_epoch: int = 5,
                  ):
         self.batch_size = batch_size
         self.loss_func = loss_func
@@ -306,7 +306,7 @@ class TaskConfig:
         self.test = test
         self.optimizer = optimizer
         self.freeze_emb = freeze_emb
-        self.early_stop_alpha = early_stop_alpha
+        self.early_stop_epoch = early_stop_epoch
 
         self.model_config = model_config
         self.data_config = data_config

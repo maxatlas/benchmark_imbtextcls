@@ -2,6 +2,8 @@
 Given config -> TaskDataset for train/test/val
 
 """
+import math
+
 from datasets.features.features import ClassLabel, Value, Sequence
 from datasets import load_dataset
 from Config import DataConfig
@@ -57,14 +59,13 @@ def split_df(df: DataFrame,
         count_dict = {i: len(df.loc[df[config.label_field] == i])
                       for i in range(label_features.num_classes)}
 
+        limit_per_class = int(config.limit/label_features.num_classes) if config.limit else math.inf
+        count_dict = {key: value if value <= limit_per_class else limit_per_class for (key, value) in count_dict.items()}
+
         train_dict, test_dict, val_dict = set_imb_count_dict(
             count_dict, config.imb_tolerance, config.imb_threshold,
             config.cls_ratio_to_imb, config.sample_ratio_to_imb,
             config.balance_strategy)
-
-        split_info = {"train": train_dict,
-                      "test": test_dict,
-                      "val": val_dict}
 
         df, train_df = _retrieve_samples(df, train_dict)
         df, test_df = _retrieve_samples(df, test_dict)
@@ -74,6 +75,8 @@ def split_df(df: DataFrame,
         label_features = label_features[0]
         count_dict = {i: len(df.loc[df[config.label_field].map(lambda x: i in x)])
                       for i in range(label_features.num_classes)}
+        limit_per_class = int(config.limit/label_features.num_classes) if config.limit else math.inf
+        count_dict = {key: value if value <= limit_per_class else limit_per_class for (key, value) in count_dict.items()}
         length = len(df)
 
         train_ratio, test_ratio, val_ratio = config.split_ratio.split("/")
@@ -113,7 +116,6 @@ def main(config: DataConfig):
     train, test, val, split_info = split_df(df, label_features, config)
 
     print(split_info)
-    train, test, val = train[:config.limit], test[:config.limit], val[:config.limit]
     train, test, val = train[:config.test], test[:config.test], val[:config.test]
     train, test, val = TaskDataset(train, label_features, config), \
                        TaskDataset(test, label_features, config), \

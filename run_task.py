@@ -11,7 +11,7 @@ from vars import (cache_folder,
                   results_folder)
 from tqdm import tqdm
 from Config import (TaskConfig,
-                    DataConfig,)
+                    DataConfig, )
 from torch.utils.data import DataLoader
 from time import time
 from task_utils import metrics_frame
@@ -49,6 +49,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
 
     try:
         results = dill.load(open(filename, "rb"))
+        print(idx in results)
         if idx in results:
             results[idx]['result'].extend(res[idx]['result'])
         else:
@@ -92,9 +93,6 @@ def cache(config: dict, data):
 
 
 def main(task: TaskConfig):
-    print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
-    print("\t\t model %s" % task.model_config['model_name'])
-
     task.model_config["device"] = task.device
     task.data_config["test"] = task.test
     print(str(task.model_config))
@@ -149,6 +147,10 @@ def main(task: TaskConfig):
     valid_i = None
 
     for i in range(task.epoch):
+        print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
+        print("\t\t model %s" % task.model_config['model_name'])
+        print(str(task.model_config))
+
         torch.cuda.empty_cache()
 
         probs_test, preds_test, labels_test = None, None, None
@@ -192,9 +194,9 @@ def main(task: TaskConfig):
 
         # If the accuracy is lower than half of the previous results ...
         if acc_list and res["Accuracy"] <= acc_list[-1]:
-            threshold = len(acc_list) - 1 + int(task.epoch * float(task.early_stop_alpha))
+            threshold = len(acc_list) + task.early_stop_epoch
             print("###################%i %i#######################" % (i, threshold))
-            if i >= threshold:
+            if i > threshold:
                 break
             continue
 

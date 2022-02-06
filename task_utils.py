@@ -86,6 +86,8 @@ def get_res_df(info):
     results["micro"] = [res["Micro-F1"], None]
     results["weighted"] = [cr["weighted avg"]['f1-score'], None]
     results["accuracy"] = [res['Accuracy'], None]
+    results["avg_sec_per_epoch"] = [res["seconds_avg_epoch"], None]
+    results["total_epochs"] = [res["epochs"], None]
 
     data = np.array(list(results.values()))
 
@@ -103,4 +105,6 @@ if __name__ == "__main__":
     infos = list(dill.load(open("results/sms_spam_balance_strategy_None/bert", "rb")).values())
     dfs = [get_res_df(info) for info in infos]
     pd.concat(dfs, axis=0, levels=0)  # different datasets
-    pd.concat(dfs, axis=1, levels=0)  # different models
+    out = pd.concat(dfs, axis=1, levels=0)  # different models
+
+    print(out)

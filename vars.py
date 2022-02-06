@@ -134,14 +134,6 @@ datasets_meta = [
     },
 # 11
 {
-    "huggingface_dataset_name": ["imdb"],
-    "label_field": "label",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.5,
-},
-# 12
-{
     "huggingface_dataset_name": ["go_emotions"],
     "label_field": "labels",
     "text_fields": ["text"],
@@ -149,7 +141,7 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.6,
     "multi_label": True,
     },
-# 13
+# 12
 {
     "huggingface_dataset_name": ["tweet_eval", "emoji"],
     "label_field": "label",
@@ -157,7 +149,7 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.6,
     },
-# 14
+# 13
 {
     "huggingface_dataset_name": ["glue", "sst2"],
     "label_field": "label",
@@ -165,6 +157,14 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.6,
     },
+# 14
+{
+    "huggingface_dataset_name": ["imdb"],
+    "label_field": "label",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.5,
+},
 # 15
 {
     "huggingface_dataset_name": ["ag_news"],

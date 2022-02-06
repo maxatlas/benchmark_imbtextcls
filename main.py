@@ -36,10 +36,10 @@ if __name__ == "__main__":
                         '-l',
                         type=int,
                         default=1)
-    parser.add_argument("--early_stop_alpha",
+    parser.add_argument("--early_stop_epoch",
                         '-s',
-                        type=float,
-                        default=0.05)
+                        type=int,
+                        default=5)
     parser.add_argument("--scenario",
                         type=int,
                         default=1)
@@ -54,6 +54,8 @@ if __name__ == "__main__":
         scene = taskcards.scenario_2
     elif args.scenario == 3:
         scene = taskcards.scenario_3
+    elif args.scenario == 0:
+        scene = taskcards.scenario_0
 
     tasks = scene(dc, args)
 
