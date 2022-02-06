@@ -15,19 +15,18 @@ def get_res(data: str, model: str,
     file_name = Path("merged", data, model)
     res_objects = dill.load(open(file_name, "rb"))
 
-    pretrains = []
-    non_pretrains = []
+    out = []
 
     for idx, res in res_objects.items():
         model = res["task"]["model_config"]
-        if model["pretrained_model_name"]:
-            if pretrained_model:
-                pretrains.append(res)
+        if pretrained_model:
+            if model["pretrained_model_name"]:
+                out.append(res)
         else:
             if model["pretrained_tokenizer_name"] == pretrained_tokenizer and \
                     model["num_layers"] == size:
-                non_pretrains.append(res)
-    out = merge_multi_res(pretrains) + merge_multi_res(non_pretrains)
+                out.append(res)
+    out = merge_multi_res(out)
     return out
 
 
@@ -46,10 +45,13 @@ def get_df_2d(pretrained_tokenizers: List[str],
     for data in datasets:
         by_model = []
         for model in models:
+            res = []
             for size, pretrained_tokenizer in size_pretrain:
-                res = get_res(data, model, pretrained_model, pretrained_tokenizer, size)
-                df = [get_res_df(res0) for res0 in res]
-                by_model.extend(df)
+                res += get_res(data, model, False, pretrained_tokenizer, size)
+            if pretrained_model:
+                res += get_res(data, model, True)
+            df = [get_res_df(res0) for res0 in res]
+            by_model.extend(df)
         if by_model:
             by_model = pd.concat(by_model, axis=1, levels=0)
             by_data.append(by_model)
