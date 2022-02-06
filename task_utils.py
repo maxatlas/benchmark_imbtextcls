@@ -61,6 +61,8 @@ def merge_res(results):
         if type(values[0]) is pd.core.frame.DataFrame:
             out[key] = (sum(values)/len(values)).to_dict()
         else:
+            if key == "ROC curve" and type(values) == tuple:
+                values = values[0]
             values = torch.tensor(values).view(-1)
             value = sum(values)/len(values)
             out[key] = float(value)
@@ -68,6 +70,8 @@ def merge_res(results):
 
 
 def get_res_df(info):
+    if not info:
+        return pd.DataFrame([])
     results = {}
 
     res = merge_res(info['result'])
