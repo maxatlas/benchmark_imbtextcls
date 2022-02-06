@@ -49,7 +49,20 @@ def metrics_frame(probs, preds, labels, label_names):
     return model_metrics
 
 
-def merge_res(results):
+def merge_multi_res(results):
+    if results:
+        target_res = {"result":[]}
+        for res in results:
+            target_res["task"] = res["task"]
+            target_res["result"].extend(res["result"])
+        target_res['result'] = [merge_single_res(target_res)]
+        return [target_res]
+
+    return []
+
+
+def merge_single_res(info):
+    results = info['result']
     out = {}
     for key in results[0]:
         values = []
@@ -74,7 +87,7 @@ def get_res_df(info):
         return pd.DataFrame([])
     results = {}
 
-    res = merge_res(info['result'])
+    res = merge_single_res(info)
     task = info['task']
     model_name = task['model_config']['model_name']
     data_name = "_".join(task['data_config']['huggingface_dataset_name'])
@@ -95,7 +108,11 @@ def get_res_df(info):
 
     data = np.array(list(results.values()))
 
-    header = pd.MultiIndex.from_product([[model_name], ["layer-%i" % task['model_config']['num_layers']], ["f1-score", "support"]],
+    pretrained = task['model_config']['pretrained_model_name']
+
+    header = pd.MultiIndex.from_product([[model_name],
+                                         ["%s%s" % ("pretrained" if pretrained else "", "layer-" + str(task['model_config']['num_layers']) if not pretrained else "")],
+                                         ["f1-score", "support"]],
                                         names=["Model", "num_layer", "Metrics"])
     index = pd.MultiIndex.from_product([[data_name], list(results.keys())],
                                        names=["Dataset", "Categories"])

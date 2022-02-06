@@ -79,4 +79,4 @@ def merge_res_from_sources(folders, destination):
 
 
 if __name__ == "__main__":
-    merge_res_from_sources(["results", "results_backup"], "test")
+    merge_res_from_sources(["res_uq", "results"], "merged")
