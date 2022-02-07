@@ -141,14 +141,13 @@ class BertEncoder(nn.Module):
 
 
 class BertModel(BertPreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config, add_pooling_layer=True):
         super(BertModel, self).__init__(config)
         self.config = config
 
         self.embeddings = BertEmbeddings(config)
         self.encoder = BertEncoder(config)
-        self.pooler = BertPooler(config) if "add_pooling_layer" in config.to_dict() \
-                                            and config.add_pooling_layer else None
+        self.pooler = BertPooler(config) if add_pooling_layer else None
 
         self.init_weights()
 

@@ -18,8 +18,8 @@ class Model(BertPreTrainedModel):
 
         if 'device' not in config.to_dict().keys():
             self.config.device = "cpu"
-
-        self.bert = BertModel(config).to(self.config.device)
+        add_pooling_layer = config.add_pooling_layer if "add_pooling_layer" in config.to_dict() else True
+        self.bert = BertModel(config, add_pooling_layer).to(self.config.device)
         classifier_dropout = config.hidden_dropout_prob \
             if not config.classifier_dropout else config.classifier_dropout
         self.dropout = nn.Dropout(classifier_dropout).to(self.config.device)
