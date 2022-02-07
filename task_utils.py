@@ -72,7 +72,9 @@ def merge_single_res(info):
                 val = pd.DataFrame.from_dict(val)
             values.append(val)
         if type(values[0]) is pd.core.frame.DataFrame:
-            out[key] = (sum(values)/len(values)).to_dict()
+            out[key] = sum(values)/len(values)
+            out[key].fillna(0, inplace=True)
+            out[key] = out[key].to_dict()
         else:
             if key == "ROC curve" and type(values[0]) == tuple:
                 values = values[0]
@@ -99,12 +101,12 @@ def get_res_df(info):
     for i, key in enumerate(label_names):
         results[key] = [cr[key]['f1-score'], int(cr[key]['support'])]
 
-    results["macro"] = [res["Macro-F1"], None]
-    results["micro"] = [res["Micro-F1"], None]
-    results["weighted"] = [cr["weighted avg"]['f1-score'], None]
-    results["accuracy"] = [res['Accuracy'], None]
-    results["avg_sec_per_epoch"] = [res["seconds_avg_epoch"], None]
-    results["total_epochs"] = [res["epochs"], None]
+    results["macro"] = [res["Macro-F1"], np.nan]
+    results["micro"] = [res["Micro-F1"], np.nan]
+    results["weighted"] = [cr["weighted avg"]['f1-score'], np.nan]
+    results["accuracy"] = [res['Accuracy'], np.nan]
+    results["avg_sec_per_epoch"] = [res["seconds_avg_epoch"], np.nan]
+    results["total_epochs"] = [int(res["epochs"]+1), np.nan]
 
     data = np.array(list(results.values()))
 
@@ -124,7 +126,7 @@ def get_res_df(info):
 if __name__ == "__main__":
     import dill
 
-    infos = list(dill.load(open("results/sms_spam_balance_strategy_None/bert", "rb")).values())
+    infos = list(dill.load(open("results/sms_spam_balance_strategy_np.nan/bert", "rb")).values())
     dfs = [get_res_df(info) for info in infos]
     pd.concat(dfs, axis=0, levels=0)  # different datasets
     out = pd.concat(dfs, axis=1, levels=0)  # different models
