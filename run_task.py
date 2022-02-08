@@ -7,6 +7,7 @@ import hashlib
 import numpy as np
 import json
 import vars
+import shutil
 from vars import (cache_folder,
                   results_folder)
 from tqdm import tqdm
@@ -16,6 +17,8 @@ from torch.utils.data import DataLoader
 from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
+
+shutil.rmtree(cache_folder+"/results")
 
 
 def write_roc_list(debug_list: list, filename: str):
@@ -217,10 +220,11 @@ def main(task: TaskConfig):
         save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
         print("\t Result saved ...")
 
-        train_folder = "%s/%s" % (vars.trained_model_folder,
-                                  task.model.model_name)
-        os.makedirs(train_folder, exist_ok=True)
+        if model_card.model_name in vars.transformer_names:
+            train_folder = "%s/%s" % (vars.trained_model_folder,
+                                      task.model.model_name)
+            os.makedirs(train_folder, exist_ok=True)
 
-        torch.save(model, "%s/%s" % (train_folder,
-                                     task.idx()))
-        print("\t Model saved ...")
+            torch.save(model, "%s/%s" % (train_folder,
+                                         task.idx()))
+            print("\t Model saved ...")

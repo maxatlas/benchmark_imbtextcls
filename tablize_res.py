@@ -8,10 +8,12 @@ from pathlib import Path
 from task_utils import get_res_df, merge_multi_res
 from random_task import merge_res_from_sources
 
+
 def get_res(data: str, model: str,
             pretrained_model: bool,
             pretrained_tokenizer: str = "",
-            size: int = None,):
+            size: int = None,
+            remove_linear: bool = True):
     file_name = Path("merged", data, model)
     try:
         res_objects = dill.load(open(file_name, "rb"))
@@ -29,7 +31,7 @@ def get_res(data: str, model: str,
                 out.append(res)
         else:
             if model["pretrained_tokenizer_name"] == pretrained_tokenizer and \
-                    model["num_layers"] == size:
+                    model["num_layers"] == size and model["remove_intermediate"] == remove_linear:
                 out.append(res)
     # out = merge_multi_res(out)
     return out
@@ -39,7 +41,8 @@ def get_df_2d(pretrained_tokenizers: List[str],
               sizes: List[int],
               pretrained_model: bool = False,
               datasets: list = None,
-              models: list = None):
+              models: list = None,
+              remove_linear: bool = True):
     if not datasets:
         datasets = os.listdir(vars.results_folder)
     if not models:
@@ -52,9 +55,11 @@ def get_df_2d(pretrained_tokenizers: List[str],
         for model in models:
             res = []
             for size, pretrained_tokenizer in size_pretrain:
-                res += get_res(data, model, False, pretrained_tokenizer, size)
+                res += get_res(data, model, False, pretrained_tokenizer, size, True)
             if pretrained_model:
                 res += get_res(data, model, True)
+            if not remove_linear:
+                res += get_res(data, model, False, pretrained_tokenizer, size, False)
             df = [get_res_df(res0) for res0 in res]
             by_model.extend(df)
         if by_model:
@@ -72,8 +77,8 @@ if __name__ == "__main__":
     # merge_res_from_sources(["res_uq", "results"], "merged")
     suffix = "_balance_strategy_None"
     # df = get_res("poem_sentiment"+suffix, "bert", True, "bert-base-uncased", 1)
-    df = get_df_2d(["bert-base-uncased", "xlnet-base-cased", "gpt2"], [1, 3, 5], True)
-    df.to_csv("csv/all.csv")
+    df = get_df_2d(["bert-base-uncased", "xlnet-base-cased", "gpt2"], [1, 3, 5], True, remove_linear=False)
+    df.to_csv("%s/all.csv" % vars.results_folder)
     # df = get_df_2d(["bert-base-uncased", "xlnet-base-cased", "gpt2"], [1, 3, 5], True, vars.imbalanced_ds)
     # df.to_csv("csv/imbalanced_dataset_overview.csv")
 

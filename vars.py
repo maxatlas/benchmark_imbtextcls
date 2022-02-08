@@ -10,10 +10,10 @@ balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
                "ag_news", "amazon_reviews_multi", "dbpedia_14",
                "yelp_review_full", "yahoo_answers_topics",
                "amazon_polarity", "banking77", "amazon_reviews_multi_en"]
-imb_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola", "lex_glue_ecthr_a",
+imbalanced_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola", "lex_glue_ecthr_a",
           "lex_glue_ecthr_b", "hate_speech18","emotion", "ade_corpus_v2_Ade_corpus_v2_classification",
           "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
-dataset_names = balanced_ds + imb_ds
+dataset_names = balanced_ds + imbalanced_ds
 
 hf_cache_folder = "%s.cache/huggingface" % current
 
@@ -192,21 +192,13 @@ datasets_meta = [
     },
 # 17
 {
-    "huggingface_dataset_name": ["amazon_reviews_multi", "en"],
-    "label_field": "product_category",
-    "text_fields": ["review_title", "review_body"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.6,
-    },
-# 18
-{
     "huggingface_dataset_name": ["dbpedia_14"],
     "label_field": "label",
     "text_fields": ["title", "content"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.53,
     },
-# 19
+# 18
 {
     "huggingface_dataset_name": ["yelp_review_full"],
     "label_field": "label",
@@ -214,7 +206,7 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.42,
     },
-# 20
+# 19
 {
     "huggingface_dataset_name": ["yahoo_answers_topics"],
     "label_field": "topic",
@@ -222,7 +214,7 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.4,
     "sample_ratio_to_imb": 0.42,
     },
-# 21
+# 20
 {
     "huggingface_dataset_name": ["amazon_polarity"],
     "label_field": "label",
@@ -230,7 +222,7 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.53,
     },
-# 22
+# 21
 {
     "huggingface_dataset_name": ["lex_glue", "ecthr_a"],
     "label_field": "labels",
@@ -239,7 +231,7 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.53,
     "multi_label": True,
     },
-# 23
+# 22
 {
     "huggingface_dataset_name": ["lex_glue", "ecthr_b"],
     "label_field": "labels",
@@ -248,7 +240,7 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.53,
     "multi_label": True,
     },
-# 24
+# 23
 {
     "huggingface_dataset_name": ["lex_glue", "scotus"],
     "label_field": "label",

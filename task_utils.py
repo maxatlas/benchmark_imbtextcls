@@ -106,15 +106,17 @@ def get_res_df(info):
     results["weighted"] = [cr["weighted avg"]['f1-score'], np.nan]
     results["accuracy"] = [res['Accuracy'], np.nan]
     results["avg_sec_per_epoch"] = [res["seconds_avg_epoch"], np.nan]
-    results["total_epochs"] = [int(res["epochs"]+1), np.nan]
+    results["total_epochs"] = [res["epochs"]+1, np.nan]
 
     data = np.array(list(results.values()))
 
     pretrained = task['model_config']['pretrained_model_name']
 
-    header = pd.MultiIndex.from_product([[model_name],
-                                         ["%s%s" % ("pretrained" if pretrained else "", "layer-" + str(task['model_config']['num_layers']) if not pretrained else "")],
-                                         ["f1-score", "support"]],
+    model_id = "%s%s" %("pretrained" if pretrained else "",
+                        "layer-" + str(task['model_config']['num_layers']) if not pretrained else "")
+    model_id = "%s%s" %(model_id, "" if task['model_config']['remove_intermediate'] else "-with_linears")
+
+    header = pd.MultiIndex.from_product([[model_name], ["%s" % model_id], ["f1-score", "support"]],
                                         names=["Model", "num_layer", "Metrics"])
     index = pd.MultiIndex.from_product([[data_name], list(results.keys())],
                                        names=["Dataset", "Categories"])
