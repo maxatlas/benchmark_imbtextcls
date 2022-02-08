@@ -1,5 +1,7 @@
 import copy
 from hashlib import sha256
+
+import vars
 from vars import (model_names,
                   transformer_names,
                   parameter_folder)
@@ -58,6 +60,7 @@ class DataConfig:
                  balance_strategy=None,
                  threshold=0.6, tolerance=0.3,
                  test=None,
+                 limit=200_000,
                  multi_label=False):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
@@ -87,6 +90,7 @@ class DataConfig:
         self.balance_strategy = balance_strategy
 
         self.test = test
+        self.limit = limit
         self.multi_label = multi_label
 
     def to_dict(self):
@@ -103,7 +107,7 @@ class ModelConfig:
                  device=None,
                  word_max_length=None,
                  hidden_size=100,
-                 word_index_path="%s/word_index" % parameter_folder,
+                 word_index_path=None,
                  emb_path=None,
                  n_layers=1,
                  activation_function="gelu",
@@ -115,6 +119,11 @@ class ModelConfig:
                  pretrained_model_name="",
                  pretrained_tokenizer_name="",
                  lr=0.001,
+                 disable_output=True,
+                 disable_selfoutput=True,
+                 disable_intermediate=True,
+                 add_pooling_layer=False,
+                 n_heads=1,
                  ):
 
         self.model_name = model_name.lower()
@@ -124,6 +133,7 @@ class ModelConfig:
         self.pretrained_tokenizer_name = pretrained_tokenizer_name
 
         self.lr = lr
+        self.num_layers = n_layers
 
         assert num_labels, "Must specify number of labels (num_labels)."
         assert self.model_name in model_names, \
@@ -135,6 +145,7 @@ class ModelConfig:
 
         self.num_labels = num_labels
         self.device = device
+
 
         if pretrained_model_name:
             assert any([transformer_name in pretrained_model_name
@@ -151,14 +162,47 @@ class ModelConfig:
 
         else:  # Customized models or transformers
             if model_name in transformer_names:  # Customized transformers
+                self.disable_intermediate = disable_intermediate
+                self.disable_output = disable_output
+                self.disable_selfoutput = disable_selfoutput
+                self.cls_hidden_size = hidden_size
+
                 transformer_config(self, word_max_length, dropout, activation_function)
 
+                if model_name in ["bert", "roberta"]:
+                    self.add_pooling_layer = add_pooling_layer
+                    self.num_hidden_layers = n_layers
+                    self.num_attention_heads = n_heads
+                elif model_name in ["gpt2", "xlnet"]:
+                    self.n_head = n_heads
+                    self.n_layer = n_layers
+
                 if pretrained_tokenizer_name:  # Customized transformers with pretrained transformer tokenizers.
-                    assert model_name in pretrained_tokenizer_name, "Unmatched pretrained tokenizer %s for model %s." \
-                                                                     % (pretrained_tokenizer_name, model_name)
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
-                    self.tokenizer_name = model_name
+
+                    self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
+
+                    word_max_length = 512
+
+                    if self.tokenizer_name == "bert" or self.tokenizer_name == "roberta":
+                        emb_d = 768
+                    elif self.tokenizer_name == "gpt2" or self.tokenizer_name == "xlnet":
+                        emb_d = 768
+
+                    if model_name == "bert" or model_name == "roberta":
+                        self.hidden_size = emb_d
+                        self.max_position_embeddings = word_max_length
+                    elif model_name == "gpt2":
+                        self.n_embd = emb_d
+                        self.n_positions = word_max_length
+                    elif model_name == "xlnet":
+                        self.d_model = emb_d
+
+                    if not emb_path:
+                        self.emb_path = vars.parameter_folder + "/emb_layer_%s" % \
+                                        (get_tokenizer_name(pretrained_tokenizer_name))
+
                 else:
                     raise NotImplementedError("Customized transformer tokenizers not implemented.")
                     # tokenizer_config(self)
@@ -166,20 +210,26 @@ class ModelConfig:
                 model_config(self, padding, dilation, stride, filters, hidden_size)
 
                 self.emb_path = emb_path
-                self.word_index_path = word_index_path
                 self.cls_hidden_size = hidden_size
 
                 self.dropout = dropout
-                self.num_layers = n_layers
                 self.activation = activation_function
                 self.tokenizer = None
+                self.word_max_length = word_max_length
 
                 if pretrained_tokenizer_name:  # with pretrained tokenizer.
                     assert any([transformer_name in pretrained_tokenizer_name
                                 for transformer_name in transformer_names]), "Pretrained tokenizer name is not valid."
                     self.tokenizer_name = get_tokenizer_name(pretrained_tokenizer_name)
-                    self.emb_path = "%s/emb_layer_%s" % (parameter_folder, self.tokenizer_name)
+                    if model_name == "han":
+                        self.tokenizer_name = self.tokenizer_name + "-sent"
+                    self.emb_path = "%s/emb_layer_%s" % (parameter_folder,
+                                                         get_tokenizer_name(pretrained_tokenizer_name))
+
                 else:
+                    if not word_index_path:
+                        word_index_path = "% s / word_index" % parameter_folder
+                    self.word_index_path = word_index_path
                     if tokenizer_name in transformer_names:
                         raise NotImplementedError("Customized transformer tokenizers not implemented.")
                         # tokenizer_config(self)
@@ -190,18 +240,18 @@ class ModelConfig:
                             "tokenizer_name,\n\t\t" \
                             "word_index path."
 
-                        assert tokenizer_name in ["spacy", "spacy-sent", "nltk",
-                                                  "nltk-sent"], \
+                        assert "sent" in tokenizer_name, \
                             "%s model requires a tokenizer (spacy/nltk/bert/gpt2/roberta/xlnet)." % model_name
                         self.tokenizer_name = tokenizer_name
 
                         if model_name == "han":
-                            assert tokenizer_name in ["nltk-sent", "spacy-sent"], "HAN classifier requires " \
-                                                                                  "sentence tokenizer. " \
-                                                                                  "(nltk-sent or spacy-sent)"
+                            assert "sent" in tokenizer_name, "HAN classifier requires " \
+                                                             "sentence tokenizer. " \
+                                                             "(nltk-sent or spacy-sent)"
                         else:
                             assert word_max_length, "Customized non transformer models require " \
                                                     "word_max_length specified."
+
                             self.word_max_length = word_max_length
 
     def __call__(self):
@@ -222,6 +272,8 @@ class ModelConfig:
 
             if self.pretrained_model_name:
                 config = config.from_pretrained(self.pretrained_model_name).from_dict(self.__dict__)
+            elif self.pretrained_tokenizer_name:
+                config = config().from_dict(self.__dict__)
             else:
                 config = config().from_dict(self.__dict__)
 
@@ -244,7 +296,8 @@ class TaskConfig:
                  device: str = "cpu",
                  test=None,
                  epoch: int = 1,
-                 freeze_emb : bool = True
+                 freeze_emb : bool = True,
+                 early_stop_epoch: int = 5,
                  ):
         self.batch_size = batch_size
         self.loss_func = loss_func
@@ -253,6 +306,7 @@ class TaskConfig:
         self.test = test
         self.optimizer = optimizer
         self.freeze_emb = freeze_emb
+        self.early_stop_epoch = early_stop_epoch
 
         self.model_config = model_config
         self.data_config = data_config
@@ -263,6 +317,9 @@ class TaskConfig:
         return self
 
     def to_dict(self):
+        self.model_config = self.model.to_dict()
+        self.data_config = self.data.to_dict()
+
         task = copy.deepcopy(self.__dict__)
 
         task['loss_func'] = str(task['loss_func'])

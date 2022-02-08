@@ -3,9 +3,38 @@ import copy
 import torch.nn as nn
 import dill
 import math
-import torch.nn.functional as F
 
 from dataset_utils import get_max_lengths
+
+
+class Classifier(nn.Module):
+    def __init__(self, config):
+        super(Classifier, self).__init__()
+        self.layer = nn.Linear(config.hidden_size, config.num_labels).to(config.device)
+        # can add layernorm, dropout etc. so that it's cleaner on the final model's side.
+
+    def forward(self, x):
+        out = self.layer(x)
+        return out
+
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    @staticmethod
+    def forward(x):
+        return x
+
+
+class Identity2(nn.Module):
+    def __init__(self):
+        super(Identity2, self).__init__()
+
+    @staticmethod
+    def forward(x, y):
+        out = x + y
+        return out
 
 
 class TaskModel(nn.Module):
@@ -13,15 +42,20 @@ class TaskModel(nn.Module):
         super(TaskModel, self).__init__()
         self.config = config
 
-        emb_weights = torch.load(config.emb_path)
+        emb_obj = dill.load(open(config.emb_path, "rb"))
+        self.emb = emb_obj['word'].to(config.device)
 
-        vocab_size, self.emb_d = emb_weights['weight'].shape
-        self.emb = nn.Embedding(vocab_size, self.emb_d).to(config.device)
-        self.emb.load_state_dict(emb_weights)
+        self.pos_emb = emb_obj.get('pos')
+
+        if self.pos_emb:
+            self.pos_emb.to(config.device)
+
+        vocab_size, self.emb_d = self.emb.weight.shape
 
         self.cls = nn.Linear(config.cls_hidden_size, config.num_labels).to(config.device)
 
-        self.word_index = dill.load(open(config.word_index_path, "rb"))
+        if "word_index_path" in config.to_dict():
+            self.word_index = dill.load(open(config.word_index_path, "rb"))
 
         self.tokenizer = None
 
@@ -52,15 +86,14 @@ class TaskModel(nn.Module):
                 token_ids = [[[self.word_index.get(word, 0) for word in sent] for sent in doc] for doc in tokens]
             else:
                 token_ids = [[self.word_index.get(word, 0) for word in doc] for doc in tokens]
+            logits, _ = self.forward(token_ids)
         else:
             token_ids = tokens['input_ids']
+            logits, _ = self.forward(token_ids)
 
-        logits, _ = self.forward(token_ids)
         label_ids = label_ids.float()
 
         if multi_label:
-
-            label_ids = label_ids.to(self.config.device)
             loss = loss_func(logits.view(-1, len(label_names)),
                              label_ids.view(-1, len(label_names)).
                              type_as(logits.view(-1, len(label_names)))
@@ -83,13 +116,13 @@ class TaskModel(nn.Module):
 
         with torch.no_grad():
             logits, preds = self.forward(token_ids)
+            probs = torch.sigmoid(logits)
             if multi_label:
-                probs = torch.sigmoid(logits)
                 preds = (probs > 0.5).long()
             else:
                 preds = get_label_ids(preds.tolist(), label_names).long()
             labels = torch.tensor(labels).long()
-        return preds, labels
+        return probs, preds, labels
 
 
 def get_label_ids(labels, label_names):
@@ -125,13 +158,13 @@ def batch_train(self, texts, label_ids, label_names, loss_func, multi_label):
 def batch_eval(self, texts, labels, label_names, multi_label):
     with torch.no_grad():
         logits, preds = self.forward(texts)
+        probs = torch.sigmoid(logits)
         if multi_label:
-            probs = torch.sigmoid(logits)
             preds = (probs > 0.5).long()
         else:
             preds = get_label_ids(preds.tolist(), label_names)
         labels = torch.tensor(labels).long()
-    return preds, labels
+    return probs, preds, labels
 
 
 def pad_seq(text_ids, length_limit=None):
@@ -179,3 +212,11 @@ def save_transformer_emb(model, model_name):
     i = 1 if model_name == "xlnet" else 0
     emb = load_transformer_emb(model, i)
     torch.save(emb, "params/emb_layer_%s" % model_name)
+
+
+def merge_trans_sent(res):
+    d = {}
+    keys = res[0][0].keys()
+    for key in keys:
+        d[key] = [[sent[key] for sent in doc] for doc in res]
+    return d

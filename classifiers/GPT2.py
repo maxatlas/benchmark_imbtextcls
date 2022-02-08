@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 
 from model_utils import pad_seq, batch_train, batch_eval
-from transformers import (GPT2PreTrainedModel,
-                          GPT2Model)
+from classifiers.GPT2_homemade import (GPT2PreTrainedModel,
+                                       GPT2Model)
 
 
 class Model(GPT2PreTrainedModel):
@@ -26,8 +26,6 @@ class Model(GPT2PreTrainedModel):
 
         self.cls_type = "last"
 
-        self.init_weights()
-
     def freeze_emb(self):
         self.transformer.wte.weight.requires_grad = False
         self.transformer.wpe.weight.requires_grad = False
@@ -42,7 +40,10 @@ class Model(GPT2PreTrainedModel):
     def forward(self, texts, **kwargs):
         max_length = self.config.n_positions
 
-        input_ids, attention_mask = self.tokenizer.core(texts).values()
+        out = self.tokenizer(texts)
+        input_ids, attention_mask, token_type_ids = out['input_ids'], \
+                                                    out.get("attention_mask"), \
+                                                    out.get("token_type_ids")
 
         input_ids = pad_seq(input_ids, max_length).to(self.config.device)
         attention_mask = pad_seq(attention_mask, max_length).to(self.config.device)

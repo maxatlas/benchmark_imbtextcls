@@ -18,6 +18,8 @@ def preprocess_texts(texts:list):
 
 def get_label_ids(labels, label_names):
     label_ids = np.array(len(label_names) * [0])
+    if type(labels) is int:
+        labels = [labels]
     for i, label in enumerate(labels):
         label_ids[label] = 1
     return label_ids

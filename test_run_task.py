@@ -46,6 +46,10 @@ parser.add_argument('--epoch',
                     '-e',
                     type=int,
                     default=3)
+parser.add_argument('--layers',
+                    '-l',
+                    type=int,
+                    default=1)
 
 args = parser.parse_args()
 
@@ -57,14 +61,17 @@ pretrained_tokenizer_name = args.tokenizer_pretrained
 tokenizer_name = args.tokenizer
 pretrained_model_name = args.model_pretrained
 emb_path = "%s/emb_layer_%s" % (parameter_folder, args.embedder)
+n_layers = args.layers
 loss = BCEWithLogitsLoss if dd.get("multi_label") else CrossEntropyLoss
+
 
 md = {
     "model_name": model_name,
     "tokenizer_name": tokenizer_name,
     "pretrained_model_name": pretrained_model_name,
     "pretrained_tokenizer_name": pretrained_tokenizer_name,
-    "emb_path": emb_path
+    "emb_path": emb_path,
+    "n_layers": n_layers,
 }
 
 optimizer = torch.optim.AdamW

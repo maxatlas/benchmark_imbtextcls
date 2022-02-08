@@ -13,7 +13,7 @@ class Model(TaskModel):
         self.dropout = nn.Dropout(config.dropout).to(config.device)
 
     def forward(self, input_ids):
-        input_ids = pad_seq(input_ids, self.config.word_max_length).to(self.config.device)
+        input_ids = pad_seq(input_ids).to(self.config.device)
 
         embeds = self.emb(input_ids)
         lstm_out, (ht, ct) = self.lstm(embeds)

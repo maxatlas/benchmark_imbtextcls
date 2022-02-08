@@ -20,39 +20,44 @@ if __name__ == "__main__":
                         default="cuda:0",
                         type=str,
                         help="which device to run on: cpu/cuda:n")
-    parser.add_argument('--scenario',
-                        '-s',
-                        type=int,
-                        default=0,
-                        help="1. Pretrained model; "
-                             "2. Customized model with pretrained tokenizer; "
-                             "3. Customized model with customized tokenizer.")
-    parser.add_argument('--epoch',
-                        '-e',
-                        type=int,
-                        default=3)
-
+    parser.add_argument('--tokenizer_pretrained',
+                        '-x',
+                        type=str,
+                        default="")
     parser.add_argument("--test",
                         '-t',
                         default=0,
                         type=int)
+    parser.add_argument('--epoch',
+                        '-e',
+                        type=int,
+                        default=3)
+    parser.add_argument('--layers',
+                        '-l',
+                        type=int,
+                        default=1)
+    parser.add_argument("--early_stop_epoch",
+                        '-s',
+                        type=int,
+                        default=5)
+    parser.add_argument("--scenario",
+                        type=int,
+                        default=1)
 
     args = parser.parse_args()
     dc = vars.datasets_meta[args.dataset_i]
 
     print("Pretrained models ...")
-    tasks = []
-    if args.scenario == 1:
-        tasks = taskcards.scenario_1(dc, args)
-    elif args.scenario == 2:
-        tasks = taskcards.scenario_2(dc, args)
+
+    scene = taskcards.scenario_1
+    if args.scenario == 2:
+        scene = taskcards.scenario_2
     elif args.scenario == 3:
-        tasks = taskcards.scenario_3(dc, args)
-    else:
-        tasks = []
-        tasks += taskcards.scenario_1(dc, args)
-        tasks += taskcards.scenario_2(dc, args)
-        tasks += taskcards.scenario_3(dc, args)
+        scene = taskcards.scenario_3
+    elif args.scenario == 0:
+        scene = taskcards.scenario_0
+
+    tasks = scene(dc, args)
 
     for task in tasks:
         try:
