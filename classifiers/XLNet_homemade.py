@@ -1,4 +1,5 @@
 import dill
+import torch
 from model_utils import Identity
 
 from transformers.models.xlnet.modeling_xlnet import *
@@ -22,6 +23,7 @@ class XLNetFeedForward(XLNetFeedForward):
 class XLNetRelativeAttention(XLNetRelativeAttention):
     def __init__(self, config):
         super().__init__(config)
+        self.config = config
 
         qkv_size = config.qkv_size if "qkv_size" in config.to_dict() else config.d_model
 
@@ -39,6 +41,8 @@ class XLNetRelativeAttention(XLNetRelativeAttention):
         self.k = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
         self.v = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
         self.o = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
+        if "disable_selfoutput" in self.config.to_dict() and self.config.disable_selfoutput and "qkv_size" not in config.to_dict():
+            self.o = nn.Parameter(torch.ones(self.d_model, self.n_head, self.d_head), requires_grad=False)
         self.r = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
 
         self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
@@ -49,15 +53,148 @@ class XLNetRelativeAttention(XLNetRelativeAttention):
         self.layer_norm = nn.LayerNorm(self.d_model, eps=config.layer_norm_eps)
         self.dropout = nn.Dropout(config.dropout)
 
+    def forward(
+            self,
+            h,
+            g,
+            attn_mask_h,
+            attn_mask_g,
+            r,
+            seg_mat,
+            mems=None,
+            target_mapping=None,
+            head_mask=None,
+            output_attentions=False,
+    ):
+        if g is not None:
+            # Two-stream attention with relative positional encoding.
+            # content based attention score
+            if mems is not None and mems.dim() > 1:
+                cat = torch.cat([mems, h], dim=0)
+            else:
+                cat = h
+
+            # content-based key head
+            k_head_h = torch.einsum("ibh,hnd->ibnd", cat, self.k)
+
+            # content-based value head
+            v_head_h = torch.einsum("ibh,hnd->ibnd", cat, self.v)
+
+            # position-based key head
+            k_head_r = torch.einsum("ibh,hnd->ibnd", r, self.r)
+
+            # h-stream
+            # content-stream query head
+            q_head_h = torch.einsum("ibh,hnd->ibnd", h, self.q)
+
+            # core attention ops
+            attn_vec_h = self.rel_attn_core(
+                q_head_h,
+                k_head_h,
+                v_head_h,
+                k_head_r,
+                seg_mat=seg_mat,
+                attn_mask=attn_mask_h,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+            )
+
+            if output_attentions:
+                attn_vec_h, attn_prob_h = attn_vec_h
+
+            # post processing
+            output_h = self.post_attention(h, attn_vec_h)
+
+            # g-stream
+            # query-stream query head
+            q_head_g = torch.einsum("ibh,hnd->ibnd", g, self.q)
+
+            # core attention ops
+            if target_mapping is not None:
+                q_head_g = torch.einsum("mbnd,mlb->lbnd", q_head_g, target_mapping)
+                attn_vec_g = self.rel_attn_core(
+                    q_head_g,
+                    k_head_h,
+                    v_head_h,
+                    k_head_r,
+                    seg_mat=seg_mat,
+                    attn_mask=attn_mask_g,
+                    head_mask=head_mask,
+                    output_attentions=output_attentions,
+                )
+
+                if output_attentions:
+                    attn_vec_g, attn_prob_g = attn_vec_g
+
+                attn_vec_g = torch.einsum("lbnd,mlb->mbnd", attn_vec_g, target_mapping)
+            else:
+                attn_vec_g = self.rel_attn_core(
+                    q_head_g,
+                    k_head_h,
+                    v_head_h,
+                    k_head_r,
+                    seg_mat=seg_mat,
+                    attn_mask=attn_mask_g,
+                    head_mask=head_mask,
+                    output_attentions=output_attentions,
+                )
+
+                if output_attentions:
+                    attn_vec_g, attn_prob_g = attn_vec_g
+
+            # post processing
+            output_g = self.post_attention(g, attn_vec_g)
+
+            if output_attentions:
+                attn_prob = attn_prob_h, attn_prob_g
+
+        else:
+            # Multi-head attention with relative positional encoding
+            if mems is not None and mems.dim() > 1:
+                cat = torch.cat([mems, h], dim=0)
+            else:
+                cat = h
+
+            # content heads
+            q_head_h = torch.einsum("ibh,hnd->ibnd", h, self.q)
+            k_head_h = torch.einsum("ibh,hnd->ibnd", cat, self.k)
+            v_head_h = torch.einsum("ibh,hnd->ibnd", cat, self.v)
+
+            # positional heads
+            # type casting for fp16 support
+            k_head_r = torch.einsum("ibh,hnd->ibnd", r.type(self.r.dtype), self.r)
+
+            # core attention ops
+            attn_vec = self.rel_attn_core(
+                q_head_h,
+                k_head_h,
+                v_head_h,
+                k_head_r,
+                seg_mat=seg_mat,
+                attn_mask=attn_mask_h,
+                head_mask=head_mask,
+                output_attentions=output_attentions,
+            )
+
+            if output_attentions:
+                attn_vec, attn_prob = attn_vec
+
+            # post processing
+            output_h = self.post_attention(h, attn_vec)
+            output_g = None
+
+        outputs = (output_h, output_g)
+        if output_attentions:
+            outputs = outputs + (attn_prob,)
+        return outputs
+
 
 class XLNetLayer(XLNetLayer):
     def __init__(self, config):
         super(XLNetLayer, self).__init__(config)
         self.rel_attn = XLNetRelativeAttention(config)
-        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
+        if "disable_output" in config.to_dict() and config.disable_output:
             self.ff = Identity()
-        else:
-            self.ff = XLNetFeedForward(config)
 
 
 class XLNetModel(XLNetPreTrainedModel):

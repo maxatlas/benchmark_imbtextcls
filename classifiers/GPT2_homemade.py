@@ -1,7 +1,7 @@
 import dill
 import vars
 from transformers.models.gpt2.modeling_gpt2 import *
-from model_utils import Identity
+from model_utils import Identity, Identity2
 
 
 class GPT2Attention(GPT2Attention):
@@ -23,14 +23,18 @@ class GPT2Attention(GPT2Attention):
             self.q_attn = Conv1D(self.embed_dim, config.hidden_size)
         else:
             self.c_attn = Conv1D(3 * self.embed_dim, config.hidden_size)
+
         self.c_proj = Conv1D(config.hidden_size, self.embed_dim)
+        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput and\
+                "qkv_size" not in config.to_dict():
+            self.c_proj = Identity()
 
 
 class GPT2Block(GPT2Block):
     def __init__(self, config, layer_idx=None):
         super().__init__(config, layer_idx)
         self.attn = GPT2Attention(config, layer_idx=layer_idx)
-        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
+        if "disable_output" in config.to_dict() and config.disable_output:
             self.mlp = Identity()
 
 
