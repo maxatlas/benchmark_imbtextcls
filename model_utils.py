@@ -7,6 +7,14 @@ import math
 from dataset_utils import get_max_lengths
 
 
+def get_model_param_size(model):
+    out = 0
+    for i, layer in enumerate(model.parameters()):
+        if layer.requires_grad:
+            out += torch.prod(torch.tensor(layer.size()))
+    return out
+
+
 class Classifier(nn.Module):
     def __init__(self, config):
         super(Classifier, self).__init__()
