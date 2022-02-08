@@ -27,8 +27,7 @@ class BertAttention(BertAttention):
         super(BertAttention, self).__init__(config, position_embedding_type)
         self.self = BertSelfAttention(config, position_embedding_type=position_embedding_type)
         self.output = BertSelfOutput(config)
-        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput and "qkv_size" not in config.to_dict() \
-                and config.qkv_size != config.hidden_size:
+        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput and "qkv_size" not in config.to_dict():
             self.output = Identity2()
 
 
