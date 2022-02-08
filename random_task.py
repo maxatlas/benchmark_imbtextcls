@@ -6,6 +6,7 @@ import json
 
 from hashlib import sha256
 from pathlib import Path
+from datasets import load_dataset
 
 def rename_cnn_res(folder):
     def fix_obj(results, new_id=None):
@@ -76,6 +77,34 @@ def merge_res_from_sources(folders, destination):
                 os.makedirs(destination+"/%s" % data, exist_ok=True)
                 dill.dump(results, open(destination/file, "wb"))
                 json.dump(results, open(destination/jfile, "w"))
+
+
+def get_ds_length(dmeta):
+    data_name = dmeta["huggingface_dataset_name"]
+    text_fields = dmeta["text_fields"]
+    ds = load_dataset(*data_name)
+
+    overall_length = []
+    for split in ds.values():
+        for sample in split:
+            for text_field in text_fields:
+                text = sample[text_field]
+                overall_length.append(len(text))
+
+    return overall_length
+
+
+def get_ds_lengths(dmetas=None):
+    if not dmetas:
+        dmetas = vars.datasets_meta
+
+    for dmeta in dmetas:
+        print(dmeta['huggingface_dataset_name'])
+        out = get_ds_length(dmeta)
+        out.sort()
+        print("avg length: %f" % (sum(out)/len(out)))
+        print("median length: %i" % out[int(len(out)/2)])
+
 
 
 if __name__ == "__main__":
