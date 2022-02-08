@@ -210,14 +210,14 @@ class XLNetModel(XLNetPreTrainedModel):
         self.clamp_len = config.clamp_len
         self.n_layer = config.n_layer
 
+        if "emb_path" in config.to_dict():
+            emb_obj = dill.load(open(config.emb_path, "rb"))
+            self.word_embedding = emb_obj['word']
         self.word_embedding = nn.Embedding(config.vocab_size, self.d_model)
         self.mask_emb = nn.Parameter(torch.FloatTensor(1, 1, self.d_model))
         self.layer = nn.ModuleList([XLNetLayer(config) for _ in range(config.n_layer)])
         self.dropout = nn.Dropout(config.dropout)
 
-        if "emb_path" in config.to_dict():
-            emb_obj = dill.load(open(config.emb_path, "rb"))
-            self.word_embeddings = emb_obj['word']
 
         self.post_init()
 
