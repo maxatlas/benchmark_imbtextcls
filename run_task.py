@@ -98,7 +98,6 @@ def cache(config: dict, data):
 def main(task: TaskConfig):
     task.model_config["device"] = task.device
     task.data_config["test"] = task.test
-    print(str(task.model_config))
 
     data_card = DataConfig(**task.data_config)
 
@@ -124,17 +123,14 @@ def main(task: TaskConfig):
     word_max_length = 512 if word_max_length > 512 else word_max_length
 
     task.model_config["word_max_length"] = word_max_length
-
     model_card = task().model
-
     if not model:
         model = build_model.main(model_card)
         cache(model_card.to_dict(), model)
-
     if task.freeze_emb:
         model.freeze_emb()
 
-    from random_task import get_model_param_size
+    from model_utils import get_model_param_size
     print("model size: %i" % get_model_param_size(model))
 
     train_tds, test_tds, val_tds, split_info = data
@@ -155,7 +151,7 @@ def main(task: TaskConfig):
     for i in range(task.epoch):
         print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
         print("\t\t model %s" % task.model_config['model_name'])
-        print(str(task.model_config))
+        print(model_card.to_dict())
 
         torch.cuda.empty_cache()
 
