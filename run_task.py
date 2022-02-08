@@ -18,7 +18,7 @@ from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
 
-shutil.rmtree(cache_folder+"/results")
+shutil.rmtree(cache_folder+"/results", ignore_errors=True)
 
 
 def write_roc_list(debug_list: list, filename: str):
@@ -76,8 +76,9 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
 
 def load_cache(config: dict):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
+    sub_folder = "dataset" if "huggingface_dataset_name" in config else "model"
 
-    filename = "%s/%s/%s" % (cache_folder, "exp", idx)
+    filename = "%s/%s/%s/%s" % (cache_folder, "exp", sub_folder, idx)
     try:
         return dill.load(open(filename, "rb"))
     except FileNotFoundError:
@@ -85,14 +86,13 @@ def load_cache(config: dict):
 
 
 def cache(config: dict, data):
-    print(str(config))
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
-    print(idx)
-    filename = "%s/%s/%s" % (cache_folder, "exp", idx)
-    try:
-        dill.dump(data, open(filename, 'wb'))
-    except FileNotFoundError:
-        os.makedirs(cache_folder, exist_ok=True)
+    sub_folder = "dataset" if "huggingface_dataset_name" in config else "model"
+    folder = "%s/%s/%s" % (cache_folder, "exp", sub_folder)
+    filename = "%s/%s/" % (folder, idx)
+
+    os.makedirs(folder, exist_ok=True)
+    dill.dump(data, open(filename, 'wb'))
 
 
 def main(task: TaskConfig):
@@ -220,11 +220,10 @@ def main(task: TaskConfig):
         save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
         print("\t Result saved ...")
 
-        if model_card.model_name in vars.transformer_names:
-            train_folder = "%s/%s" % (vars.trained_model_folder,
-                                      task.model.model_name)
-            os.makedirs(train_folder, exist_ok=True)
+        train_folder = "%s/%s" % (vars.trained_model_folder,
+                                  task.model.model_name)
+        os.makedirs(train_folder, exist_ok=True)
 
-            torch.save(model, "%s/%s" % (train_folder,
-                                         task.idx()))
-            print("\t Model saved ...")
+        torch.save(model, "%s/%s" % (train_folder,
+                                     task.idx()))
+        print("\t Model saved ...")
