@@ -89,7 +89,7 @@ def cache(config: dict, data):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
     sub_folder = "dataset" if "huggingface_dataset_name" in config else "model"
     folder = "%s/%s/%s" % (cache_folder, "exp", sub_folder)
-    filename = "%s/%s/" % (folder, idx)
+    filename = "%s/%s" % (folder, idx)
 
     os.makedirs(folder, exist_ok=True)
     dill.dump(data, open(filename, 'wb'))
