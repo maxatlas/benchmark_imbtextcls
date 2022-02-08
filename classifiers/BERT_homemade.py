@@ -25,8 +25,50 @@ class BertLayer(BertLayer):
 class BertAttention(BertAttention):
     def __init__(self, config, position_embedding_type=None):
         super(BertAttention, self).__init__(config, position_embedding_type)
-        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
+        self.self = BertSelfAttention(config, position_embedding_type=position_embedding_type)
+        self.output = BertSelfOutput(config)
+        if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput and "qkv_size" not in config.to_dict() \
+                and config.qkv_size != config.hidden_size:
             self.output = Identity2()
+
+
+class BertSelfOutput(BertSelfOutput):
+    def __init__(self, config):
+        super().__init__(config)
+
+        qkv_size = config.hidden_size
+        if "qkv_size" in config.to_dict():
+            qkv_size = config.qkv_size
+
+        self.dense = nn.Linear(qkv_size, config.hidden_size)
+        self.LayerNorm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.hidden_dropout_prob)
+
+    def forward(self, hidden_states, input_tensor):
+        hidden_states = self.dense(hidden_states)
+        hidden_states = self.dropout(hidden_states)
+        hidden_states = self.LayerNorm(hidden_states + input_tensor)
+        return hidden_states
+
+
+class BertSelfAttention(BertSelfAttention):
+    def __init__(self, config, position_embedding_type=None):
+        super().__init__(config, position_embedding_type)
+        qkv_size = config.hidden_size
+        if "qkv_size" in config.to_dict():
+            if config.qkv_size % config.num_attention_heads != 0 and not hasattr(config, "embedding_size"):
+                raise ValueError(
+                    f"The hidden size ({config.hidden_size}) is not a multiple of the number of attention "
+                    f"heads ({config.num_attention_heads})"
+                )
+            qkv_size = config.qkv_size
+
+        self.attention_head_size = int(qkv_size / config.num_attention_heads)
+        self.all_head_size = self.num_attention_heads * self.attention_head_size
+
+        self.query = nn.Linear(config.hidden_size, self.all_head_size)
+        self.key = nn.Linear(config.hidden_size, self.all_head_size)
+        self.value = nn.Linear(config.hidden_size, self.all_head_size)
 
 
 class BertEmbeddings(BertEmbeddings):

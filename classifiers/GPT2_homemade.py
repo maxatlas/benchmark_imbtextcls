@@ -4,9 +4,32 @@ from transformers.models.gpt2.modeling_gpt2 import *
 from model_utils import Identity
 
 
+class GPT2Attention(GPT2Attention):
+    def __init__(self, config, is_cross_attention=False, layer_idx=None):
+        super().__init__(config, is_cross_attention, layer_idx)
+        self.num_heads = config.num_attention_heads
+
+        self.embed_dim = config.qkv_size if "qkv_size" in config.to_dict() else config.hidden_size
+        self.num_heads = config.num_attention_heads
+        self.head_dim = self.embed_dim // self.num_heads
+        self.split_size = self.embed_dim
+        if self.head_dim * self.num_heads != self.embed_dim:
+            raise ValueError(
+                f"`embed_dim` must be divisible by num_heads (got `embed_dim`: {config.hidden_size} and `num_heads`: {self.num_heads})."
+            )
+
+        if self.is_cross_attention:
+            self.c_attn = Conv1D(2 * self.embed_dim, config.hidden_size)
+            self.q_attn = Conv1D(self.embed_dim, config.hidden_size)
+        else:
+            self.c_attn = Conv1D(3 * self.embed_dim, config.hidden_size)
+        self.c_proj = Conv1D(config.hidden_size, self.embed_dim)
+
+
 class GPT2Block(GPT2Block):
     def __init__(self, config, layer_idx=None):
         super().__init__(config, layer_idx)
+        self.attn = GPT2Attention(config, layer_idx=layer_idx)
         if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
             self.mlp = Identity()
 

@@ -124,6 +124,7 @@ class ModelConfig:
                  disable_intermediate=True,
                  add_pooling_layer=False,
                  n_heads=1,
+                 qkv_size=768,
                  ):
 
         self.model_name = model_name.lower()
@@ -166,6 +167,9 @@ class ModelConfig:
                 self.disable_output = disable_output
                 self.disable_selfoutput = disable_selfoutput
                 self.cls_hidden_size = hidden_size
+
+                if qkv_size and qkv_size != 768:
+                    self.qkv_size = qkv_size
 
                 transformer_config(self, word_max_length, dropout, activation_function)
 

@@ -4,11 +4,60 @@ from model_utils import Identity
 from transformers.models.xlnet.modeling_xlnet import *
 
 
+class XLNetFeedForward(XLNetFeedForward):
+    def __init__(self, config):
+        super().__init__(config)
+        self.d_model = config.qkv_size if "qkv_size" in config.to_dict() else config.d_model
+
+        self.layer_norm = nn.LayerNorm(self.d_model, eps=config.layer_norm_eps)
+        self.layer_1 = nn.Linear(self.d_model, config.d_inner)
+        self.layer_2 = nn.Linear(config.d_inner, config.d_model)
+        self.dropout = nn.Dropout(config.dropout)
+        if isinstance(config.ff_activation, str):
+            self.activation_function = ACT2FN[config.ff_activation]
+        else:
+            self.activation_function = config.ff_activation
+
+
+class XLNetRelativeAttention(XLNetRelativeAttention):
+    def __init__(self, config):
+        super().__init__(config)
+
+        qkv_size = config.qkv_size if "qkv_size" in config.to_dict() else config.d_model
+
+        self.n_head = config.n_head
+        self.d_head = config.d_head
+        self.d_head = qkv_size
+        self.scale = 1 / (config.d_head ** 0.5)
+
+        if self.d_model % config.n_head != 0:
+            raise ValueError(
+                f"The hidden size ({config.d_model}) is not a multiple of the number of attention "
+                f"heads ({config.n_head}")
+
+        self.q = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
+        self.k = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
+        self.v = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
+        self.o = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
+        self.r = nn.Parameter(torch.FloatTensor(self.d_model, self.n_head, self.d_head))
+
+        self.r_r_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+        self.r_s_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+        self.r_w_bias = nn.Parameter(torch.FloatTensor(self.n_head, self.d_head))
+        self.seg_embed = nn.Parameter(torch.FloatTensor(2, self.n_head, self.d_head))
+
+        self.layer_norm = nn.LayerNorm(self.d_model, eps=config.layer_norm_eps)
+        self.dropout = nn.Dropout(config.dropout)
+
+
 class XLNetLayer(XLNetLayer):
     def __init__(self, config):
         super(XLNetLayer, self).__init__(config)
+        self.rel_attn = XLNetRelativeAttention(config)
         if "disable_selfoutput" in config.to_dict() and config.disable_selfoutput:
             self.ff = Identity()
+        else:
+            self.ff = XLNetFeedForward(config)
 
 
 class XLNetModel(XLNetPreTrainedModel):
@@ -24,8 +73,8 @@ class XLNetModel(XLNetPreTrainedModel):
         self.clamp_len = config.clamp_len
         self.n_layer = config.n_layer
 
-        self.word_embedding = nn.Embedding(config.vocab_size, config.d_model)
-        self.mask_emb = nn.Parameter(torch.FloatTensor(1, 1, config.d_model))
+        self.word_embedding = nn.Embedding(config.vocab_size, self.d_model)
+        self.mask_emb = nn.Parameter(torch.FloatTensor(1, 1, self.d_model))
         self.layer = nn.ModuleList([XLNetLayer(config) for _ in range(config.n_layer)])
         self.dropout = nn.Dropout(config.dropout)
 

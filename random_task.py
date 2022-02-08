@@ -3,6 +3,7 @@ import os
 import vars
 import dill
 import json
+import torch
 
 from hashlib import sha256
 from pathlib import Path
@@ -106,6 +107,17 @@ def get_ds_lengths(dmetas=None):
         print("median length: %i" % out[int(len(out)/2)])
 
 
+def get_model_param_size(model):
+    out = 0
+    for i, layer in enumerate(model.parameters()):
+        if layer.requires_grad:
+            out += torch.prod(torch.tensor(layer.size()))
+    return out
+
 
 if __name__ == "__main__":
-    merge_res_from_sources(["res_uq", "results"], "merged")
+    path = "trained/bert/9353c651b23d3a4aca18a8b34480ffa6cdd0e9c2761097ab925e2e9a6a00f8c9"
+    model = torch.load(path)
+    size = get_model_param_size(model)
+    print(size)
+    # merge_res_from_sources(["res_uq", "results"], "merged")
