@@ -134,6 +134,9 @@ def main(task: TaskConfig):
     if task.freeze_emb:
         model.freeze_emb()
 
+    from random_task import get_model_param_size
+    print("model size: %i" % get_model_param_size(model))
+
     train_tds, test_tds, val_tds, split_info = data
 
     task.data.split_info = split_info

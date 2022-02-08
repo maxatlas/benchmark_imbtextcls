@@ -43,6 +43,7 @@ def scenario_1(dc: dict, args):
         mc = {
             "model_name": model,
             "pretrained_tokenizer_name": args.tokenizer_pretrained,
+            "qkv_size": 768,
             "n_layers": args.layers,
         }
         tc = {

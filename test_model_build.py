@@ -37,7 +37,7 @@ if __name__ == "__main__":
                      word_max_length=512,
                      emb_path="%sparams/emb_layer_gpt2" % vars.current,
                      n_layers=1,
-                     qkv_size=50,
+                     qkv_size=768,
                      device="cpu")
 
     m = build_model.main(mc)

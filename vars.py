@@ -22,7 +22,7 @@ model_names = ["bert", "xlnet", "gpt2",
 transformer_names = model_names[:3]
 transformer_pretrain = \
     ["bert-base-uncased", "xlnet-base-cased", "gpt2"]
-customized_model_names = model_names[4:]
+customized_model_names = model_names[3:]
 
 customized_tokenizer_names = ["nltk", "spacy"]
 

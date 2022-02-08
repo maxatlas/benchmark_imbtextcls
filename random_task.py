@@ -9,6 +9,44 @@ from hashlib import sha256
 from pathlib import Path
 from datasets import load_dataset
 
+
+def rename_gpt2_res(folder):
+    def fix_obj(results, new_id=None):
+        results_copy = copy.deepcopy(results)
+        idx_dict = {}
+        for idx, res in results_copy.items():
+            mc = res['task']['model_config']
+            mc['disable_selfoutput'] = False
+            new_idx = sha256(str(res).encode('utf-8')).hexdigest() \
+                if not new_id else new_id
+            results[new_idx] = res
+            idx_dict[idx] = new_idx
+            print(results[new_idx]['task']['model_config'])
+        return results, idx_dict
+
+    for ds in os.listdir(folder):
+        res_folder = vars.results_folder + "/%s" % ds
+        for f in os.listdir(res_folder):
+            if f.startswith("gpt2") or f.startswith("xlnet"):
+                file_name = res_folder + "/" + f
+                print("\n\n"+file_name)
+                if f.endswith("xlnet") or f.endswith("gpt2"):
+                    results = dill.load(open(file_name, "rb"))
+                    results, idx_dict = fix_obj(results)
+                    dill.dump(results, open(file_name, "wb"))
+                else:
+                    if f.endswith(".json"):
+                        json.dump(results, open(file_name, "w"))
+                    else:
+                        results = dill.load(open(file_name, "rb"))
+                        results_copy = copy.deepcopy(results)
+
+                        for idx, roc_list in results_copy.items():
+                            if idx_dict.get(idx):
+                                results[idx_dict[idx]] = roc_list
+                        dill.dump(results, open(file_name, "wb"))
+
+
 def rename_cnn_res(folder):
     def fix_obj(results, new_id=None):
         results_copy = copy.deepcopy(results)
@@ -116,8 +154,9 @@ def get_model_param_size(model):
 
 
 if __name__ == "__main__":
-    path = "trained/bert/9353c651b23d3a4aca18a8b34480ffa6cdd0e9c2761097ab925e2e9a6a00f8c9"
-    model = torch.load(path)
-    size = get_model_param_size(model)
-    print(size)
-    # merge_res_from_sources(["res_uq", "results"], "merged")
+    rename_gpt2_res("results")
+    # path = "trained/bert/9353c651b23d3a4aca18a8b34480ffa6cdd0e9c2761097ab925e2e9a6a00f8c9"
+    # model = torch.load(path)
+    # size = get_model_param_size(model)
+    # print(size)
+    # # merge_res_from_sources(["res_uq", "results"], "merged")
