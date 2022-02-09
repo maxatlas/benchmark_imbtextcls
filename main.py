@@ -2,7 +2,7 @@
 check max word length and sent length, configure model word max length accordingly properly
 """
 import vars
-import run_task
+import run_task as run_task
 import argparse
 import taskcards
 from Config import TaskConfig
@@ -43,11 +43,12 @@ if __name__ == "__main__":
     parser.add_argument("--scenario",
                         type=int,
                         default=1)
+    parser.add_argument("--retrain",
+                        type=int,
+                        default=0)
 
     args = parser.parse_args()
     dc = vars.datasets_meta[args.dataset_i]
-
-    print("Pretrained models ...")
 
     scene = taskcards.scenario_1
     if args.scenario == 2:
@@ -58,8 +59,12 @@ if __name__ == "__main__":
         scene = taskcards.scenario_0
 
     tasks = scene(dc, args)
-
     for task in tasks:
+
+        model_path = None
+        if args.retrain:
+            model_path = vars.trained_model_cur_folder + "/" +\
+                         task["model_config"]["model_name"]
         try:
             run_task.main(TaskConfig(**task))
         except Exception as e:
