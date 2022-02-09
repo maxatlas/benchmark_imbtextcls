@@ -56,6 +56,7 @@ def scenario_1(dc: dict, args):
             "test": args.test if args.test else None,
             "epoch": args.epoch,
             "early_stop_epoch": args.early_stop_epoch,
+            "retrain": args.retrain,
         }
 
         task_cards.append(tc)
@@ -91,33 +92,37 @@ def scenario_2(dc: dict, args):
     return task_cards
 
 
-def scenario_3(dc: dict, args):
+def retrain(dc, args):
+    dcs = [vars.datasets_meta] if not dc else [dc]
     task_cards = []
 
+    models = []
     loss = BCEWithLogitsLoss if dc.get('multi_label') else CrossEntropyLoss
-    for model, pretrained_name in zip(vars.transformer_names, vars.transformer_pretrain):
-        mc = {
-            "model_name": model,
-            "pretrained_tokenizer_name": pretrained_name,
-            "n_layers": args.layers,
-            "disable_output": False,
-            "disable_intermediate": False,
-            "disable_selfoutput": False,
-            "enable_pooler": True,
-        }
 
-        tc = {
-            "data_config": dc,
-            "model_config": mc,
-            "batch_size": 100,
-            "loss_func": loss(),
-            "device": args.device,
-            "optimizer": torch.optim.AdamW,
-            "test": args.test if args.test else None,
-            "epoch": args.epoch,
-            "early_stop_epoch": args.early_stop_epoch,
-        }
+    for dc in dcs:
+        for model in models:
+            mc = {
+                "model_name": model,
+                "pretrained_tokenizer_name": "gpt2",
+                "n_layers": args.layers,
+                "disable_output": False,
+                "disable_intermediate": False,
+                "disable_selfoutput": False,
+                "enable_pooler": True,
+            }
 
-        task_cards.append(tc)
+            tc = {
+                "data_config": dc,
+                "model_config": mc,
+                "batch_size": 100,
+                "loss_func": loss(),
+                "device": args.device,
+                "optimizer": torch.optim.AdamW,
+                "test": args.test if args.test else None,
+                "epoch": args.epoch,
+                "early_stop_epoch": args.early_stop_epoch,
+            }
+
+            task_cards.append(tc)
 
     return task_cards

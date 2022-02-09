@@ -13,7 +13,7 @@ if __name__ == "__main__":
     parser.add_argument('--dataset_i',
                         '-i',
                         default=None,
-                        required=True,
+                        required=False,
                         type=int,
                         help="nth dataset from vars.datasets_meta")
     parser.add_argument("--device",
@@ -48,7 +48,7 @@ if __name__ == "__main__":
                         default=0)
 
     args = parser.parse_args()
-    dc = vars.datasets_meta[args.dataset_i]
+    dc = vars.datasets_meta[args.dataset_i] if args.dataset_i else None
 
     scene = taskcards.scenario_1
     if args.scenario == 2:

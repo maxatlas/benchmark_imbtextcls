@@ -5,6 +5,8 @@ parameter_folder = "%sparams" % current
 results_folder = "%sresults" % current
 cache_folder = "%s.cache" % current
 trained_model_folder = "%strained" % current
+results_cur_folder = "%sresults/CUR" % current
+trained_model_cur_folder = "%strained/CUR" % current
 
 balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
                "ag_news", "amazon_reviews_multi", "dbpedia_14",

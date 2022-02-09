@@ -301,8 +301,10 @@ class TaskConfig:
                  device: str = "cpu",
                  test=None,
                  epoch: int = 1,
-                 freeze_emb : bool = True,
+                 freeze_emb: bool = True,
                  early_stop_epoch: int = 5,
+                 test_only: bool = False,
+                 retrain: bool = False,
                  ):
         self.batch_size = batch_size
         self.loss_func = loss_func
@@ -312,6 +314,9 @@ class TaskConfig:
         self.optimizer = optimizer
         self.freeze_emb = freeze_emb
         self.early_stop_epoch = early_stop_epoch
+
+        self.test_only = test_only
+        self.retrain = retrain
 
         self.model_config = model_config
         self.data_config = data_config
