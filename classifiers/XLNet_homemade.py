@@ -1,5 +1,4 @@
 import dill
-import torch
 from model_utils import Identity
 
 from transformers.models.xlnet.modeling_xlnet import *
@@ -25,14 +24,13 @@ class XLNetRelativeAttention(XLNetRelativeAttention):
         super().__init__(config)
         self.config = config
 
-        qkv_size = config.qkv_size if "qkv_size" in config.to_dict() else config.d_model
+        qkv_size = config.qkv_size if "qkv_size" in config.to_dict() else config.d_head
 
         self.n_head = config.n_head
-        self.d_head = config.d_head
         self.d_head = qkv_size
-        self.scale = 1 / (config.d_head ** 0.5)
+        self.scale = 1 / (self.d_head ** 0.5)
 
-        if self.d_model % config.n_head != 0:
+        if self.d_model % self.n_head != 0:
             raise ValueError(
                 f"The hidden size ({config.d_model}) is not a multiple of the number of attention "
                 f"heads ({config.n_head}")
@@ -213,7 +211,8 @@ class XLNetModel(XLNetPreTrainedModel):
         if "emb_path" in config.to_dict():
             emb_obj = dill.load(open(config.emb_path, "rb"))
             self.word_embedding = emb_obj['word']
-        self.word_embedding = nn.Embedding(config.vocab_size, self.d_model)
+        else:
+            self.word_embedding = nn.Embedding(config.vocab_size, self.d_model)
         self.mask_emb = nn.Parameter(torch.FloatTensor(1, 1, self.d_model))
         self.layer = nn.ModuleList([XLNetLayer(config) for _ in range(config.n_layer)])
         self.dropout = nn.Dropout(config.dropout)

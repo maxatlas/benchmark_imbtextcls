@@ -21,11 +21,11 @@ class Model(TaskModel):
         output, (_, _) = self.lstm(x)
 
         final_encoding = torch.cat((output, x), 2).permute(1, 0, 2)
-        for _ in range(self.config.num_layers):
-            y = self.W2(final_encoding)  # y.size() = (batch_size, num_sequences, hidden_size)
-            y = y.permute(0, 2, 1)  # y.size() = (batch_size, hidden_size, num_sequences)
-            y = F.max_pool1d(y, y.size(2))  # y.size() = (batch_size, hidden_size, 1)
-            y = y.squeeze(2)
+
+        y = self.W2(final_encoding)  # y.size() = (batch_size, num_sequences, hidden_size)
+        y = y.permute(0, 2, 1)  # y.size() = (batch_size, hidden_size, num_sequences)
+        y = F.max_pool1d(y, y.size(2))  # y.size() = (batch_size, hidden_size, 1)
+        y = y.squeeze(2)
 
         logits = self.cls(y)
         preds = torch.argmax(logits, dim=1)
