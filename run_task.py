@@ -6,10 +6,9 @@ import build_dataset
 import hashlib
 import numpy as np
 import json
-import vars
 import shutil
-from vars import (cache_folder,
-                  results_folder)
+import vars
+
 from tqdm import tqdm
 from Config import (TaskConfig,
                     DataConfig, )
@@ -18,7 +17,7 @@ from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
 
-shutil.rmtree(cache_folder+"/results", ignore_errors=True)
+shutil.rmtree(vars.cache_folder+"/results", ignore_errors=True)
 
 
 def write_roc_list(debug_list: list, filename: str):
@@ -27,16 +26,18 @@ def write_roc_list(debug_list: list, filename: str):
     file.close()
 
 
-def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
+def save_result(task: TaskConfig, results: dict, roc_list: list,
+                cache=False, save_folder: str=None):
     idx = task.idx()
-    folder = "_".join(task.data.huggingface_dataset_name) \
-             + "_balance_strategy_%s" % task.data.balance_strategy
-    folder = "%s/%s" % (results_folder, folder) if not cache \
-        else "%s/%s/%s" % (cache_folder, "results", folder)
-    try:
-        os.listdir(folder)
-    except FileNotFoundError:
-        os.makedirs(folder, exist_ok=True)
+
+    folder = save_folder
+    if not save_folder:
+        folder = "_".join(task.data.huggingface_dataset_name) \
+                 + "_balance_strategy_%s" % task.data.balance_strategy
+        folder = "%s/%s" % (vars.results_folder, folder) if not cache \
+        else "%s/%s/%s" % (vars.cache_folder, "results", folder)
+
+    os.makedirs(folder, exist_ok=True)
 
     filename = "%s/%s" % (folder, task.model.model_name)
     res = {
@@ -76,9 +77,10 @@ def save_result(task: TaskConfig, results: dict, roc_list: list, cache=False):
 
 def load_cache(config: dict):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
+    print(idx)
     sub_folder = "dataset" if "huggingface_dataset_name" in config else "model"
 
-    filename = "%s/%s/%s/%s" % (cache_folder, "exp", sub_folder, idx)
+    filename = "%s/%s/%s/%s" % (vars.cache_folder, "exp", sub_folder, idx)
     try:
         return dill.load(open(filename, "rb"))
     except FileNotFoundError:
@@ -88,14 +90,14 @@ def load_cache(config: dict):
 def cache(config: dict, data):
     idx = hashlib.sha256(str(config).encode('utf-8')).hexdigest()
     sub_folder = "dataset" if "huggingface_dataset_name" in config else "model"
-    folder = "%s/%s/%s" % (cache_folder, "exp", sub_folder)
+    folder = "%s/%s/%s" % (vars.cache_folder, "exp", sub_folder)
     filename = "%s/%s" % (folder, idx)
 
     os.makedirs(folder, exist_ok=True)
     dill.dump(data, open(filename, 'wb'))
 
 
-def main(task: TaskConfig):
+def main(task: TaskConfig, model_path=""):
     task.model_config["device"] = task.device
     task.data_config["test"] = task.test
 
@@ -122,11 +124,30 @@ def main(task: TaskConfig):
 
     word_max_length = 512 if word_max_length > 512 else word_max_length
 
+    if model_path:
+        word_max_length = 512
+
     task.model_config["word_max_length"] = word_max_length
     model_card = task().model
+
     if not model:
         model = build_model.main(model_card)
         cache(model_card.to_dict(), model)
+
+    if model_path:
+        try:
+            d = torch.load(model_path)
+            datasets_trained = d['datasets_trained']
+            state_dict = model.state_dict()
+            state_dict.update(d['state_dict'])
+            model.load_state_dict(state_dict)
+            print("Model is updated from model_path.")
+            print("Trained datasets: %s" % str(datasets_trained))
+        except FileNotFoundError:
+            datasets_trained = []
+            print("Model isn't found at %s. Initiating one from config given." % model_path)
+
+
     if task.freeze_emb:
         model.freeze_emb()
 
@@ -148,6 +169,10 @@ def main(task: TaskConfig):
     acc_list = []
     valid_i = None
 
+    if task.test_only:
+        train_dl = DataLoader([])
+        task.epoch = 1
+
     for i in range(task.epoch):
         print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
         print("\t\t model %s" % task.model_config['model_name'])
@@ -167,8 +192,25 @@ def main(task: TaskConfig):
             label_feature = train_tds.label_feature
             loss = model.batch_train(texts, labels, label_feature.names, task.loss_func, train_tds.multi_label)
             loss.backward()
-            optimizer.step()
-            optimizer.zero_grad()
+            #
+            # before_train = copy.deepcopy(dict(model.named_parameters()))
+            # optimizer.step()
+            # optimizer.zero_grad()
+            # after_train = copy.deepcopy(dict(model.named_parameters()))
+
+            # print("Printing Params at batch %i ..." % j)
+            # input()
+            # for name, param in before_train.items():
+            #     if param.requires_grad and len(param.size()) > 1:
+            #         print("\t"+name+" of size: %s" % str(param.size()))
+            #         print("\tBefore train:")
+            #         print(param)
+            #         print("\n\tloss: %s" % str(loss))
+            #         print("\n\tAfter train:")
+            #         print(after_train[name])
+            #         print("\tPress any button to continue ...")
+            #         print("*********************************************************************")
+            #         input()
 
         print("Epoch %i finished." % i)
         clocks += time() - clock_start
@@ -176,6 +218,7 @@ def main(task: TaskConfig):
         label_feature = test_tds.label_feature
 
         print("\t Evaluating ...")
+
         model.eval()
         for batch in tqdm(test_dl, desc="Iteration"):
             texts, labels = batch
@@ -217,12 +260,33 @@ def main(task: TaskConfig):
         res['seconds_avg_epoch'] = clocks / (i + 1)
 
         save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
+
         print("\t Result saved ...")
 
-        train_folder = "%s/%s" % (vars.trained_model_folder,
-                                  task.model.model_name)
-        os.makedirs(train_folder, exist_ok=True)
+        if not model_path:
+            train_folder = "%s/%s" % (vars.trained_model_folder, task.model.model_name)
 
-        torch.save(model, "%s/%s" % (train_folder,
-                                     task.idx()))
-        print("\t Model saved ...")
+            os.makedirs(train_folder, exist_ok=True)
+            file_name = task.idx()
+            torch.save(model, "%s/%s" % (train_folder, file_name))
+
+            print("\t Model saved ...")
+
+        else:
+            state_dict = model.state_dict()
+            if 'classifier.weight' in state_dict:
+                del state_dict['classifier.weight']
+                del state_dict['classifier.bias']
+            if 'cls.weight' in state_dict:
+                del state_dict['cls.weight']
+                del state_dict['cls.bias']
+
+            torch.save({
+                "datasets_trained": datasets_trained + task.data.huggingface_dataset_name,
+                "state_dict": state_dict,
+                "model_config": task.model.to_dict(),
+            }, model_path)
+
+            print("\t Saving model at %s" % model_path)
+
+    return model

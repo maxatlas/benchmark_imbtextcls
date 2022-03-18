@@ -1,6 +1,99 @@
 import copy
 import math
 import numpy as np
+import pandas as pd
+from collections import defaultdict
+
+
+def get_head_class(count_dict):
+    """
+    Return list of class names and counts that are the head classes.
+    :param count_dict:
+    :return:
+    """
+    out = []
+    l = sorted(list(count_dict.items()), key=lambda x:x[1], reverse=True)
+    for item in l[1:]:
+        if item[1] > l[0][1] * 0.9:
+            out.append(item)
+        else:
+            break
+    return out
+
+
+def get_tail_class(count_dict):
+    """
+    Return list of class names and counts that are the tail class.
+    :param labels:
+    :return:
+    """
+    out = []
+    l = sorted(list(count_dict.items()), key=lambda x: x[1])
+    for item in l[1:]:
+        if item[1] < l[0][1] * 1.1:
+            out.append(item)
+        else:
+            break
+    return out
+
+
+def get_count_dict(labels):
+    out = defaultdict(int)
+    for label in labels:
+        if type(label) == int or type(label) == str:
+            out[label] += 1
+        else:
+            for l in label:
+                out[l] += 1
+    return out
+
+
+def oversample(df, target_count_dict: dict, label_field: str):
+    """
+    logic: how much more samples each class needs. have a dictionary of it, and add samples accordingly
+    select a row - replicate
+    :param label_field:
+    :param target_count_dict:
+    :param df:
+    :return:
+    """
+    for key, value in target_count_dict.items():
+        if value > 0:
+            ids = []
+            # Sample n rows by class and add it to ids
+            cls_data, to_add = df.loc[df[label_field] == key], None
+            if value < len(cls_data):
+                ids.extend(cls_data.sample(value).index)
+                to_add = df.loc[ids]
+            # when sample amount > total data length of the class.
+            else:
+                to_add = pd.concat([cls_data] * (value // len(cls_data)) +
+                                   [cls_data[: value % len(cls_data)]],
+                                   ignore_index=True)
+
+            if to_add is not None:
+                df = pd.concat([df, to_add], ignore_index=True)
+
+    return df
+
+
+def undersample(df, target_count_dict: dict, label_field: str):
+    """
+    logic: how much more samples each class needs. have a dictionary of it, and add samples accordingly
+
+    select a row - delete
+    :param label_field:
+    :param target_count_dict:
+    :param df:
+    :return:
+    """
+    ids = []
+    for key, value in target_count_dict.items():
+        # Sample n rows by class and add it to ids
+        if value < 0:
+            ids.extend(df.loc[df[label_field] == key].sample(abs(value)).index)
+    df = df.drop(ids)
+    return df
 
 
 def preprocess_text(text: str):
@@ -26,22 +119,18 @@ def get_label_ids(labels, label_names):
 
 
 def set_imb_count_dict(count_dict: dict, tolerance: float, threshold: float,
-                       cls_ratio_to_imb, sample_ratio_to_imb, balance_strategy: str = None,
-                       split_ratio: str = "0.75/0.20/0.05"):
+                       cls_ratio_to_imb, sample_ratio_to_imb,
+                       split_ratio: str = "0.75/0.20/0.05",
+                       make_it_imbalanced: bool = True):
     split_ratio = [float(i) for i in split_ratio.split("/")]
 
-    if not balance_strategy:
-        train_no_by_label = {lb: math.floor(count_dict[lb] * split_ratio[0])
-                             for lb in count_dict}
-    else:
-        train_no_by_label = _get_split_amount_by_strategy(count_dict, balance_strategy, split_ratio[0],
-                                                          tolerance, threshold)
+    train_no_by_label = {lb: math.floor(count_dict[lb] * split_ratio[0]) for lb in count_dict}
 
     test_no_by_label = {lb: math.floor((count_dict[lb] - train_no_by_label[lb]) * split_ratio[0])
                         for lb in count_dict}
     val_no_by_label = {lb: count_dict[lb] - train_no_by_label[lb] - test_no_by_label[lb]
                        for lb in count_dict}
-    if not balance_strategy and not is_imbalanced_ds(count_dict):
+    if make_it_imbalanced and not is_imbalanced_ds(count_dict):
         train_no_by_label = set_imbalance_by_cls(train_no_by_label, tolerance, threshold,
                                                  cls_ratio_to_imb, sample_ratio_to_imb)
 
@@ -68,49 +157,42 @@ def is_imbalanced_cls(cls: str, count_dict: dict, tolerance=0.2):
     return count_dict[cls] / avg > (1 + tolerance) or count_dict[cls] / avg < (1 - tolerance)
 
 
-def _get_split_amount_by_strategy(count_dict: dict, strategy: str, ratio: float, tolerance: float,
-                                  threshold: float) -> dict:
+def resample(df, label_field, balance_strategy: str):
     """
 
-    :param count_dict: {class: sample_count}
-    :param strategy: 1 for uniform, 0 to follow existing distribution
+    :param labels:
+    :param balance_strategy:
     :return:
     """
-    out = {}
-    if strategy == "undersample":
-        print(count_dict)
-        balanced_cls_counts = [0 if is_imbalanced_cls(cls, count_dict, tolerance) else
-                               count_dict[cls] for cls in count_dict]
-        balanced_cls_counts = list(filter(lambda a: a != 0, balanced_cls_counts))
-        bavg = sum(balanced_cls_counts) / len(balanced_cls_counts)
-        imb_cls_counts = [count_dict[cls] if is_imbalanced_cls(cls, count_dict, tolerance)
-                                else 0 for cls in count_dict]
-        imb_small_cls_counts = [0 if count > bavg else count for count in imb_cls_counts]
-        imb_small_cls_counts = list(filter(lambda a: a != 0, imb_small_cls_counts))
-        isavg = sum(imb_small_cls_counts) / len(imb_small_cls_counts)
-        out = {cls: math.floor(isavg * ratio) if is_imbalanced_cls(cls, count_dict, tolerance)
-                                                 and count_dict[cls] > isavg
-                                                 or not is_imbalanced_cls(cls, count_dict, tolerance)
-                                              else math.floor(count_dict[cls] * ratio) for cls in count_dict}
-        # if cls is balanced or too big, take balanced avg * test_split_ratio
-        # if cls is imbalanced and too small, take its size * test_split_ratio.
+    if balance_strategy:
+        labels = df[label_field]
+        count_dict, target_class = get_count_dict(labels), None
 
-        assert not is_imbalanced_ds(out, tolerance, threshold) or \
-               not is_imbalanced_ds(out, tolerance - 0.1, threshold - 0.1)
-    elif strategy == "uniform":
-        balanced_cls_counts = [None if is_imbalanced_cls(cls, count_dict, tolerance) else count_dict[cls] for cls in
-                               count_dict]
-        balanced_cls_counts = list(filter(lambda a: a is not None, balanced_cls_counts))
-        bavg = sum(balanced_cls_counts) / len(balanced_cls_counts)
-        out = {cls: math.floor(bavg * ratio) if is_imbalanced_cls(cls, count_dict, tolerance) and count_dict[cls] > bavg
-                                           or not is_imbalanced_cls(cls, count_dict, tolerance) else math.floor(
-            count_dict[cls] * ratio) for cls in count_dict}
+        if "oversampl" in balance_strategy:
+            target_class = get_head_class(count_dict)  # head
 
-        assert not is_imbalanced_ds(out, tolerance, threshold) or \
-               not is_imbalanced_ds(out, tolerance - 0.1, threshold - 0.1)
-    elif strategy == "oversample":
-        pass
-    return out
+        elif "undersampl" in balance_strategy:
+            target_class = get_tail_class(count_dict)  # tail
+        avg = sum([item[1] for item in target_class]) / len(target_class)
+        avg = int(avg)
+        new_values = list(avg - np.array(list(count_dict.values())))
+
+        keys = list(count_dict.keys())
+        resample_dict = dict(zip(keys, new_values))
+
+        print("Resampling dict:")
+        print(resample_dict)
+
+        out = df
+        if "oversampl" in balance_strategy:
+             out = oversample(df, resample_dict, label_field)
+
+        elif "undersampl" in balance_strategy:
+            out = undersample(df, resample_dict, label_field)
+
+        return out
+    else:
+        return df
 
 
 def get_imb_factor(no_by_cls: dict, tolerance=0.2):

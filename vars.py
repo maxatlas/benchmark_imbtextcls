@@ -13,7 +13,7 @@ balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
                "yelp_review_full", "yahoo_answers_topics",
                "amazon_polarity", "banking77", "amazon_reviews_multi_en"]
 imbalanced_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola", "lex_glue_ecthr_a",
-          "lex_glue_ecthr_b", "hate_speech18","emotion", "ade_corpus_v2_Ade_corpus_v2_classification",
+          "lex_glue_ecthr_b", "hate_speech18", "emotion", "ade_corpus_v2_Ade_corpus_v2_classification",
           "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
 dataset_names = balanced_ds + imbalanced_ds
 
@@ -153,22 +153,7 @@ datasets_meta = [
     "multi_label": True,
     },
 # 12
-{
-    "huggingface_dataset_name": ["tweet_eval", "emoji"],
-    "label_field": "label",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.6,
-    },
-# 13
-{
-    "huggingface_dataset_name": ["glue", "sst2"],
-    "label_field": "label",
-    "text_fields": ["sentence"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.6,
-    },
-# 14
+
 {
     "huggingface_dataset_name": ["imdb"],
     "label_field": "label",
@@ -176,13 +161,32 @@ datasets_meta = [
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.5,
 },
-# 15
+# 13
+
 {
     "huggingface_dataset_name": ["ag_news"],
     "label_field": "label",
     "text_fields": ["text"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.53,
+    },
+# 14
+
+{
+    "huggingface_dataset_name": ["yahoo_answers_topics"],
+    "label_field": "topic",
+    "text_fields": ["question_title", "question_content", "best_answer"],
+    "cls_ratio_to_imb": 0.4,
+    "sample_ratio_to_imb": 0.42,
+    },
+# 15
+
+{
+    "huggingface_dataset_name": ["glue", "sst2"],
+    "label_field": "label",
+    "text_fields": ["sentence"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.6,
     },
 # 16
 {
@@ -209,12 +213,13 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.42,
     },
 # 19
+
 {
-    "huggingface_dataset_name": ["yahoo_answers_topics"],
-    "label_field": "topic",
-    "text_fields": ["question_title", "question_content", "best_answer"],
-    "cls_ratio_to_imb": 0.4,
-    "sample_ratio_to_imb": 0.42,
+    "huggingface_dataset_name": ["tweet_eval", "emoji"],
+    "label_field": "label",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.6,
     },
 # 20
 {
@@ -251,3 +256,5 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.53,
     },
 ]
+
+datasets_meta = datasets_meta[: 14]

@@ -1,7 +1,7 @@
 from Config import ModelConfig, DataConfig
 from vars import datasets_meta
 from torch.nn import BCEWithLogitsLoss , CrossEntropyLoss, MSELoss
-from random_task import get_model_param_size
+from model_utils import get_model_param_size
 import build_model
 import build_dataset
 import vars
@@ -20,7 +20,7 @@ def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenize
 
 
 if __name__ == "__main__":
-    dataset_i = 5
+    dataset_i = 18
     test = 1
     dc = DataConfig(**datasets_meta[dataset_i])
     train_df, _, _, _ = build_dataset.main(dc)
@@ -32,17 +32,31 @@ if __name__ == "__main__":
 
     labels = torch.tensor(labels)
 
-    mc = ModelConfig("xlnet", n_labels,
+    mc = ModelConfig("lstm", n_labels,
                      pretrained_tokenizer_name="gpt2",
-                     word_max_length=512,
                      emb_path="%sparams/emb_layer_gpt2" % vars.current,
                      n_layers=1,
                      qkv_size=768,
-                     device="cpu")
-
+                     device="cpu",
+                     disable_output=False,
+                     disable_selfoutput=False,
+                     disable_intermediate=False,
+                     )
+                     # pretrained_tokenizer_name="gpt2",
+                     # word_max_length=512,
+                     # emb_path="%sparams/emb_layer_gpt2" % vars.current,
+                     # n_layers=1,
+                     # qkv_size=768,
+                     # device="cpu")
+    print(mc.to_dict())
     m = build_model.main(mc)
     m.freeze_emb()
     print(get_model_param_size(m))
+
+    for name, param in m.named_parameters():
+        print(name)
+        print(param.size())
+        print(param.requires_grad)
 
     out = m.batch_train(texts, labels, train_df.label_feature.names,
                         loss_func=BCEWithLogitsLoss(), multi_label=False)

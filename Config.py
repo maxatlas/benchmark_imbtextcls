@@ -61,15 +61,16 @@ class DataConfig:
                  threshold=0.6, tolerance=0.3,
                  test=None,
                  limit=200_000,
-                 multi_label=False):
+                 multi_label=False,
+                 make_it_imbalanced: bool = True):
         assert not huggingface_dataset_name or type(huggingface_dataset_name) is list or tuple, \
             "huggingface_dataset_name wrongly formatted. A valid example: (glue, sst) or [glue, sst]"
         assert (type(split_ratio) is str and all([float(e) for e in split_ratio.split("/")])
                 and len(split_ratio.split("/")) > 1), \
             "Wrong format for split_ratio. Should be 'train/test/val' or 'train/test'. " \
             "A valid example: '0.75/0.2/0.05'"
-        assert not balance_strategy or balance_strategy in ["undersample", "uniform"], \
-            "Train set split strategy could be None, 'undersample', 'uniform'. Implement if need more."
+        assert not balance_strategy or balance_strategy in ["undersample", "oversample", "", None], \
+            "Train set split strategy could be None, 'undersample', 'oversample'. Implement if need more."
 
         self.huggingface_dataset_name = huggingface_dataset_name
         # Path to glove/word2vec/fasttext. None if won't transform from token to token index.
@@ -92,6 +93,9 @@ class DataConfig:
         self.test = test
         self.limit = limit
         self.multi_label = multi_label
+
+        # Turn a balanced dataset imbalanced
+        self.make_it_imbalanced = make_it_imbalanced
 
     def to_dict(self):
         return self.__dict__
@@ -124,7 +128,7 @@ class ModelConfig:
                  disable_intermediate=True,
                  add_pooling_layer=False,
                  n_heads=1,
-                 qkv_size=None,
+                 qkv_size=768,
                  ):
 
         self.model_name = model_name.lower()

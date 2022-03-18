@@ -114,7 +114,7 @@ def get_res_df(info):
 
     model_id = "%s%s" %("pretrained" if pretrained else "",
                         "layer-" + str(task['model_config']['num_layers']) if not pretrained else "")
-    model_id = "%s%s" %(model_id, "" if task['model_config']['remove_intermediate'] else "-with_linears")
+    # model_id = "%s%s" %(model_id, "" if 'disable_intermediate' in task['model_config'] and task['model_config']['disable_intermediate'] else "-no-linear")
 
     header = pd.MultiIndex.from_product([[model_name], ["%s" % model_id], ["f1-score", "support"]],
                                         names=["Model", "num_layer", "Metrics"])

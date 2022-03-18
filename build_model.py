@@ -90,7 +90,7 @@ def main(config: ModelConfig):
             from classifiers.Roberta import Model
 
         if config.pretrained_model_name:
-            model = Model(config).from_pretrained(
+            model = Model.from_pretrained(
                 config.pretrained_model_name, num_labels=config.num_labels)
             model.config.device = config.device
             if config.model_name == "roberta":

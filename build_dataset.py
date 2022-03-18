@@ -6,6 +6,8 @@ import math
 
 from datasets.features.features import ClassLabel, Value, Sequence
 from datasets import load_dataset
+
+import dataset_utils
 from Config import DataConfig
 
 from pandas.core.frame import DataFrame
@@ -55,6 +57,7 @@ def split_df(df: DataFrame,
             df0 = df0.drop(samples.index)
         return df0, pd.concat(all_cls_samples)
 
+    # Single-label
     if type(label_features) is ClassLabel:
         count_dict = {i: len(df.loc[df[config.label_field] == i])
                       for i in range(label_features.num_classes)}
@@ -65,27 +68,30 @@ def split_df(df: DataFrame,
         train_dict, test_dict, val_dict = set_imb_count_dict(
             count_dict, config.imb_tolerance, config.imb_threshold,
             config.cls_ratio_to_imb, config.sample_ratio_to_imb,
-            config.balance_strategy)
+            make_it_imbalanced=config.make_it_imbalanced)
 
         df, train_df = _retrieve_samples(df, train_dict)
         df, test_df = _retrieve_samples(df, test_dict)
         _, val_df = _retrieve_samples(df, val_dict)
 
+        train_df = dataset_utils.resample(train_df, config.label_field, config.balance_strategy)
+
+    # Multi-label
     elif type(label_features) is list:
-        label_features = label_features[0]
-        count_dict = {i: len(df.loc[df[config.label_field].map(lambda x: i in x)])
-                      for i in range(label_features.num_classes)}
-        limit_per_class = int(config.limit/label_features.num_classes) if config.limit else math.inf
-        count_dict = {key: value if value <= limit_per_class else limit_per_class for (key, value) in count_dict.items()}
         length = len(df)
 
         train_ratio, test_ratio, val_ratio = config.split_ratio.split("/")
         train_ratio, test_ratio, val_ratio = float(train_ratio), float(test_ratio), float(val_ratio)
 
         train_df = df.iloc[:int(length * train_ratio)]
+        df = df.iloc[int(length * train_ratio):]
+
         test_df = df.iloc[:int(length * test_ratio)]
+        df = df.iloc[int(length * test_ratio):]
+
         val_df = df.iloc[:int(length * val_ratio)]
 
+    count_dict = dataset_utils.get_count_dict(train_df[config.label_field])
     return train_df, test_df, val_df, count_dict
 
 
@@ -100,19 +106,23 @@ def main(config: DataConfig):
     # Create ClassLabel object for the label field if it's not of the type.
     # Replace label in df from string to int.
     if type(label_features) is Value:
+        # turn float into int
         if "float" in label_features.dtype:
             df.loc[(df[config.label_field] >= 0.5), 'label'] = 1
             df.loc[(df[config.label_field] < 0.5), 'label'] = 0
             df[config.label_field] = df[config.label_field].astype("int32")
 
+        # Create the label feature manually for values
         names = list(set(df[config.label_field].values))
         names = [str(i) for i in names]
         label_features = ClassLabel(names=names)
         replace_dict = {name: label_features.names.index(name) for name in label_features.names}
         df = df.replace(replace_dict)
+
     elif type(label_features) is Sequence:
         label_features = [label_features.feature]
 
+    #
     train, test, val, split_info = split_df(df, label_features, config)
 
     print(split_info)
