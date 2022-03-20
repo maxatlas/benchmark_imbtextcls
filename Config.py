@@ -309,6 +309,7 @@ class TaskConfig:
                  early_stop_epoch: int = 5,
                  test_only: bool = False,
                  retrain: bool = False,
+                 random_seed: int = 0,
                  ):
         self.batch_size = batch_size
         self.loss_func = loss_func
@@ -318,6 +319,7 @@ class TaskConfig:
         self.optimizer = optimizer
         self.freeze_emb = freeze_emb
         self.early_stop_epoch = early_stop_epoch
+        self.random_seed = random_seed
 
         self.test_only = test_only
         self.retrain = retrain
@@ -341,6 +343,7 @@ class TaskConfig:
         try:
             del task['model']
             del task['data']
+            del task['random_seed']
             return task
         except KeyError:
             return task

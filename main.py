@@ -59,28 +59,38 @@ if __name__ == "__main__":
                         )
     parser.add_argument("--balance_strategy",
                         type=str,
-                        default="")
+                        default=None)
     parser.add_argument("--make_it_imbalanced",
                         type=bool,
                         default=True)
+    parser.add_argument("--random_seed",
+                        type=int,
+                        default=0)
+    parser.add_argument("--loss",
+                        type=str,
+                        default=None)
+    parser.add_argument("--qkv_size",
+                        type=int,
+                        default=768)
+    parser.add_argument("--n_heads",
+                        type=int,
+                        default=1)
 
     args = parser.parse_args()
     print(args.dataset_i)
     dc = vars.datasets_meta[args.dataset_i] if args.dataset_i != None else None
-    dc['balance_strategy'] = args.balance_strategy
-    dc['make_it_imbalanced'] = args.make_it_imbalanced
 
     scene = taskcards.scenario_1
     if args.scenario == 2:
         scene = taskcards.scenario_2
     elif args.scenario == 0:
         scene = taskcards.scenario_0
-    elif args.scenario == 4:
+    elif args.scenario == 3:
         scene = taskcards.resample_9_ds
 
     if args.retrain:
         scene = taskcards.retrain
-    tasks = scene(dc, args)
+    tasks = scene(args)
     for task in tasks:
 
         model_path = None
@@ -88,7 +98,7 @@ if __name__ == "__main__":
             model_path = vars.trained_model_cur_folder + "/" +\
                           "%s_layer_%i" % (task["model_config"]["model_name"],
                                            task["model_config"]["n_layers"])
-        # try:
-        run_task.main(TaskConfig(**task), model_path=model_path)
-        # except Exception as e:
-        #     print(e)
+        try:
+            run_task.main(TaskConfig(**task), model_path=model_path)
+        except Exception as e:
+            print(e)

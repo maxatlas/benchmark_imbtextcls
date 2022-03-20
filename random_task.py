@@ -15,6 +15,7 @@ from Config import DataConfig
 
 from dataset_utils import get_imb_factor, get_count_dict
 
+
 def exclude_index_for_cache(i: int, filename: str):
     dfcur = dill.load(open(".cache/exp/%s" % filename, "rb"))[0]
     train, test, val, split_info = df_exclude_index(i, dfcur)
@@ -87,6 +88,33 @@ def rename_gpt2_res(folder):
                                 results[idx_dict[idx]] = roc_list
                                 del results[idx]
                         dill.dump(results, open(file_name, "wb"))
+
+
+def remove_oversample(folder):
+    for ds in os.listdir(folder):
+        res_folder = vars.results_folder + "/%s" % ds
+
+        for model in vars.model_names:
+            filename = res_folder+"/%s" % model
+            print(filename)
+            try:
+                res = dill.load(open(filename, "rb"))
+                roc = dill.load(open(filename+".roc", "rb"))
+
+                res_examine = copy.deepcopy(res)
+                for key, value in res_examine.items():
+                    if value['task']['data_config']['balance_strategy'] == "oversample":
+                        print("Key %s to be deleted from dill file." %key)
+                        del res[key]
+                        try:
+                            del roc[key]
+                        except Exception:
+                            print("Key %s not in .roc file" %key)
+                print(res.keys())
+                dill.dump(res, open(filename+"", 'wb'))
+                dill.dump(roc, open(filename+"" + ".roc", "wb"))
+            except FileNotFoundError:
+                continue
 
 
 def rename_cnn_res(folder):
@@ -189,5 +217,6 @@ def get_ds_ifs(dmetas=None):
 
         print(imb_factor)
 
+
 if __name__ == "__main__":
-    get_ds_ifs(dmetas=vars.datasets_meta)
+    remove_oversample(vars.results_folder)

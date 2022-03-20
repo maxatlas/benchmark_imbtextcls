@@ -14,16 +14,12 @@ from Config import (TaskConfig,
                     DataConfig, )
 from torch.utils.data import DataLoader
 from time import time
-from task_utils import metrics_frame
+from task_utils import metrics_frame, set_random_seed
 from dataset_utils import get_max_lengths
 
+from pprint import pprint
+
 shutil.rmtree(vars.cache_folder+"/results", ignore_errors=True)
-
-
-def write_roc_list(debug_list: list, filename: str):
-    file = open(filename, "a")
-    file.writelines(debug_list)
-    file.close()
 
 
 def save_result(task: TaskConfig, results: dict, roc_list: list,
@@ -32,8 +28,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list,
 
     folder = save_folder
     if not save_folder:
-        folder = "_".join(task.data.huggingface_dataset_name) \
-                 + "_balance_strategy_%s" % task.data.balance_strategy
+        folder = "_".join(task.data.huggingface_dataset_name)
         folder = "%s/%s" % (vars.results_folder, folder) if not cache \
         else "%s/%s/%s" % (vars.cache_folder, "results", folder)
 
@@ -47,22 +42,28 @@ def save_result(task: TaskConfig, results: dict, roc_list: list,
         }
     }
 
+    res[idx]['task']['random_seed'] = [task.random_seed]
+
     roc_res = {
         idx: roc_list
     }
 
     try:
         results = dill.load(open(filename, "rb"))
+        roc_results = dill.load(open(filename+".roc", "rb"))
+        print("This id is already in results:")
         print(idx in results)
         if idx in results:
-            results[idx]['result'].extend(res[idx]['result'])
+            if results[idx]['task'].get("random_seed") and \
+                    task.random_seed not in results[idx]['task']['random_seed']:
+                results[idx]['result'].extend(res[idx]['result'])
+                results[idx]['task']['random_seed'] += [task.random_seed]
         else:
             results.update(res)
+            roc_results.update(roc_res)
+
         dill.dump(results, open(filename, "wb"))
         json.dump(results, open(filename + ".json", "w"))
-
-        roc_results = dill.load(open(filename + ".roc", "rb"))
-        roc_results.update(res)
         dill.dump(roc_results, open(filename + ".roc", "wb"))
 
     except FileNotFoundError:
@@ -98,6 +99,8 @@ def cache(config: dict, data):
 
 
 def main(task: TaskConfig, model_path=""):
+    set_random_seed(task.random_seed)
+
     task.model_config["device"] = task.device
     task.data_config["test"] = task.test
 
@@ -173,10 +176,12 @@ def main(task: TaskConfig, model_path=""):
         train_dl = DataLoader([])
         task.epoch = 1
 
+    epoch_remain = task.early_stop_epoch
     for i in range(task.epoch):
         print("Task running with: \n\t\t dataset %s" % task.data_config["huggingface_dataset_name"])
         print("\t\t model %s" % task.model_config['model_name'])
-        print(model_card.to_dict())
+        pprint(model_card.to_dict())
+        print(task.loss_func)
 
         torch.cuda.empty_cache()
 
@@ -194,8 +199,8 @@ def main(task: TaskConfig, model_path=""):
             loss.backward()
             #
             # before_train = copy.deepcopy(dict(model.named_parameters()))
-            # optimizer.step()
-            # optimizer.zero_grad()
+            optimizer.step()
+            optimizer.zero_grad()
             # after_train = copy.deepcopy(dict(model.named_parameters()))
 
             # print("Printing Params at batch %i ..." % j)
@@ -237,56 +242,53 @@ def main(task: TaskConfig, model_path=""):
         print(acc_list)
         print("Accuracy this epoch: %f" % res["Accuracy"])
 
-        # If the accuracy is lower than half of the previous results ...
+        # If the accuracy is lower than previous results ...
         if acc_list and res["Accuracy"] <= acc_list[-1]:
-            threshold = len(acc_list) + task.early_stop_epoch
-            print("###################%i %i#######################" % (i, threshold))
-            if i > threshold:
+            epoch_remain -= 1
+            print("###################%i %i#######################" % (i, i + epoch_remain))
+            if epoch_remain == 0:
                 break
             continue
 
+        epoch_remain = task.early_stop_epoch
         valid_i = i
         valid_res = res
         acc_list.append(res["Accuracy"])
         print(res['Classification report'])
 
         if not task.test:
-            save_result(task, res, [probs_test.tolist(), preds_test.tolist()], cache=True)
-            print("\t Result cached ...")
+            res = valid_res
+            res['epochs'] = valid_i
+            res['seconds_avg_epoch'] = clocks / (i + 1)
 
-    if not task.test:
-        res = valid_res
-        res['epochs'] = valid_i
-        res['seconds_avg_epoch'] = clocks / (i + 1)
+            save_result(task, res, [labels_test.tolist(), probs_test.tolist()])
 
-        save_result(task, res, [probs_test.tolist(), preds_test.tolist()])
+            print("\t Result saved ...")
 
-        print("\t Result saved ...")
+            if model_path:
+                state_dict = model.state_dict()
+                if 'classifier.weight' in state_dict:
+                    del state_dict['classifier.weight']
+                    del state_dict['classifier.bias']
+                if 'cls.weight' in state_dict:
+                    del state_dict['cls.weight']
+                    del state_dict['cls.bias']
 
-        if not model_path:
-            train_folder = "%s/%s" % (vars.trained_model_folder, task.model.model_name)
+                torch.save({
+                    "datasets_trained": datasets_trained + task.data.huggingface_dataset_name,
+                    "state_dict": state_dict,
+                    "model_config": task.model.to_dict(),
+                }, model_path)
 
-            os.makedirs(train_folder, exist_ok=True)
-            file_name = task.idx()
-            torch.save(model, "%s/%s" % (train_folder, file_name))
+                print("\t Saving model at %s" % model_path)
 
-            print("\t Model saved ...")
+            else:
+                train_folder = "%s/%s" % (vars.trained_model_folder, task.model.model_name)
 
-        else:
-            state_dict = model.state_dict()
-            if 'classifier.weight' in state_dict:
-                del state_dict['classifier.weight']
-                del state_dict['classifier.bias']
-            if 'cls.weight' in state_dict:
-                del state_dict['cls.weight']
-                del state_dict['cls.bias']
+                os.makedirs(train_folder, exist_ok=True)
+                file_name = task.idx()
+                torch.save(model, "%s/%s" % (train_folder, file_name))
 
-            torch.save({
-                "datasets_trained": datasets_trained + task.data.huggingface_dataset_name,
-                "state_dict": state_dict,
-                "model_config": task.model.to_dict(),
-            }, model_path)
-
-            print("\t Saving model at %s" % model_path)
+                print("\t Model saved ...")
 
     return model

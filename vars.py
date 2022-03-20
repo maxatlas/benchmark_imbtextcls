@@ -13,8 +13,9 @@ balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
                "yelp_review_full", "yahoo_answers_topics",
                "amazon_polarity", "banking77", "amazon_reviews_multi_en"]
 imbalanced_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola", "lex_glue_ecthr_a",
-          "lex_glue_ecthr_b", "hate_speech18", "emotion", "ade_corpus_v2_Ade_corpus_v2_classification",
-          "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
+                 "lex_glue_ecthr_b", "hate_speech18", "emotion",
+                 "ade_corpus_v2_Ade_corpus_v2_classification",
+                 "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
 dataset_names = balanced_ds + imbalanced_ds
 
 hf_cache_folder = "%s.cache/huggingface" % current

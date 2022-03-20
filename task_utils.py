@@ -1,4 +1,5 @@
 import torch
+import random
 import pandas as pd
 import numpy as np
 from sklearn.metrics import (
@@ -48,6 +49,11 @@ def metrics_frame(probs, preds, labels, label_names):
 
     return model_metrics
 
+
+def set_random_seed(seed):
+    torch.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
 
 def merge_multi_res(results):
     if results:

@@ -11,8 +11,8 @@ def get_head_class(count_dict):
     :param count_dict:
     :return:
     """
-    out = []
     l = sorted(list(count_dict.items()), key=lambda x:x[1], reverse=True)
+    out = [l[0]]
     for item in l[1:]:
         if item[1] > l[0][1] * 0.9:
             out.append(item)
@@ -27,8 +27,8 @@ def get_tail_class(count_dict):
     :param labels:
     :return:
     """
-    out = []
     l = sorted(list(count_dict.items()), key=lambda x: x[1])
+    out = [l[0]]
     for item in l[1:]:
         if item[1] < l[0][1] * 1.1:
             out.append(item)
@@ -37,14 +37,20 @@ def get_tail_class(count_dict):
     return out
 
 
-def get_count_dict(labels):
+def get_count_dict(labels, key_be_str=False):
     out = defaultdict(int)
     for label in labels:
         if type(label) == int or type(label) == str:
-            out[label] += 1
+            if key_be_str:
+                out[str(label)] += 1
+            else:
+                out[label] += 1
         else:
             for l in label:
-                out[l] += 1
+                if key_be_str:
+                    out[str(l)] += 1
+                else:
+                    out[l] += 1
     return out
 
 
@@ -125,11 +131,17 @@ def set_imb_count_dict(count_dict: dict, tolerance: float, threshold: float,
     split_ratio = [float(i) for i in split_ratio.split("/")]
 
     train_no_by_label = {lb: math.floor(count_dict[lb] * split_ratio[0]) for lb in count_dict}
-
+    print("Train split:")
+    print(train_no_by_label)
     test_no_by_label = {lb: math.floor((count_dict[lb] - train_no_by_label[lb]) * split_ratio[0])
                         for lb in count_dict}
+    print("Test split:")
+    print(test_no_by_label)
     val_no_by_label = {lb: count_dict[lb] - train_no_by_label[lb] - test_no_by_label[lb]
                        for lb in count_dict}
+    print("Val split:")
+    print(val_no_by_label)
+
     if make_it_imbalanced and not is_imbalanced_ds(count_dict):
         train_no_by_label = set_imbalance_by_cls(train_no_by_label, tolerance, threshold,
                                                  cls_ratio_to_imb, sample_ratio_to_imb)
@@ -173,7 +185,10 @@ def resample(df, label_field, balance_strategy: str):
 
         elif "undersampl" in balance_strategy:
             target_class = get_tail_class(count_dict)  # tail
-        avg = sum([item[1] for item in target_class]) / len(target_class)
+        if target_class:
+            avg = sum([item[1] for item in target_class]) / len(target_class)
+        else:
+            avg = sum(count_dict.values())/len(count_dict.values())
         avg = int(avg)
         new_values = list(avg - np.array(list(count_dict.values())))
 

@@ -20,7 +20,7 @@ def build(model_name, tokenizer_name, pretrained_model_name, pretrained_tokenize
 
 
 if __name__ == "__main__":
-    dataset_i = 18
+    dataset_i = 0
     test = 1
     dc = DataConfig(**datasets_meta[dataset_i])
     train_df, _, _, _ = build_dataset.main(dc)
@@ -32,15 +32,12 @@ if __name__ == "__main__":
 
     labels = torch.tensor(labels)
 
-    mc = ModelConfig("lstm", n_labels,
+    mc = ModelConfig("bert", n_labels,
                      pretrained_tokenizer_name="gpt2",
                      emb_path="%sparams/emb_layer_gpt2" % vars.current,
                      n_layers=1,
                      qkv_size=768,
                      device="cpu",
-                     disable_output=False,
-                     disable_selfoutput=False,
-                     disable_intermediate=False,
                      )
                      # pretrained_tokenizer_name="gpt2",
                      # word_max_length=512,

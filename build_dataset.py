@@ -91,7 +91,7 @@ def split_df(df: DataFrame,
 
         val_df = df.iloc[:int(length * val_ratio)]
 
-    count_dict = dataset_utils.get_count_dict(train_df[config.label_field])
+    count_dict = dataset_utils.get_count_dict(train_df[config.label_field], key_be_str=True)
     return train_df, test_df, val_df, count_dict
 
 
@@ -125,6 +125,7 @@ def main(config: DataConfig):
     #
     train, test, val, split_info = split_df(df, label_features, config)
 
+    print("Final train count by cls:")
     print(split_info)
     train, test, val = train[:config.test], test[:config.test], val[:config.test]
     train, test, val = TaskDataset(train, label_features, config), \
