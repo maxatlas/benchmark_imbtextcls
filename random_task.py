@@ -1,8 +1,10 @@
 import copy
 import os
+import pathlib
 
 import pandas.core.frame
 
+from task_utils import get_auc_multiclass
 import vars
 import dill
 import json
@@ -13,6 +15,8 @@ from pathlib import Path
 from datasets import load_dataset
 from Config import DataConfig
 
+from hashlib import sha256
+from collections import defaultdict
 from dataset_utils import get_imb_factor, get_count_dict
 
 
@@ -218,5 +222,146 @@ def get_ds_ifs(dmetas=None):
         print(imb_factor)
 
 
+def remove_accuracy_1(folder):
+    for ds in os.listdir(folder):
+        res_folder = vars.results_folder + "/%s" % ds
+
+        for model in vars.model_names:
+            filename = res_folder+"/%s" % model
+            print(filename)
+            try:
+                res = dill.load(open(filename, "rb"))
+                roc = dill.load(open(filename+".roc", "rb"))
+
+                res_examine = copy.deepcopy(res)
+                for key, value in res_examine.items():
+                    if value['result'][0]['Accuracy'] == 1.0:
+                        print("Key %s to be deleted from dill file." %key)
+                        del res[key]
+                        try:
+                            del roc[key]
+                        except Exception:
+                            print("Key %s not in .roc file" % key)
+                # print(res.keys())
+                dill.dump(res, open(filename+"", 'wb'))
+                dill.dump(roc, open(filename+"" + ".roc", "wb"))
+            except FileNotFoundError:
+                continue
+            except EOFError:
+                continue
+
+from os import listdir
+def for_ash():
+    for file in listdir(".cache"):
+        try:
+            ds = dill.load(open(".cache/"+file, "rb"))
+            jfile = {
+                "train": {"data": ds['train'].data.to_list(), "label": [label.tolist().index(1) for label in ds['train'].labels]},
+                "test":{"data": ds['test'].data.to_list(), "label": [label.tolist().index(1) for label in ds['test'].labels]},
+                "val":{"data": ds['val'].data.to_list(), "label": [label.tolist().index(1) for label in ds['val'].labels]}
+            }
+
+            json.dump(jfile, open(".cache/"+file+".json", "w"))
+
+        except Exception as e:
+            print(e)
+
+
+def change_roc(folder = vars.results_folder):
+    folder = pathlib.Path(folder)
+    for ds in os.listdir(folder):
+        for file in os.listdir(folder/ds):
+            if str(file).endswith(".roc"):
+                new_roc = defaultdict(dict)
+                res_file = dill.load(open(str(folder/ds/file)[:-4], "rb"))
+                roc = dill.load(open(folder/ds/file, "rb"))
+                for idx, l in roc.items():
+                    if type(roc[idx]) is list:
+                        random_seed = res_file[idx]['task']['random_seed'][0]
+                        new_roc[idx][random_seed] = l
+
+                        print(folder / ds / file)
+                        print(new_roc[idx].keys())
+                        dill.dump(new_roc, open(str(folder/ds/file), "wb"))
+
+
+def reformat_wiener_results(folder = vars.results_folder):
+    # random seed
+    folder = pathlib.Path(folder)
+    for ds in os.listdir(folder):
+        for file in os.listdir(folder / ds):
+            if file.endswith(".roc"):
+                print(folder / ds / file)
+                new_roc = defaultdict(dict)
+                new_res = defaultdict(dict)
+                res_file = dill.load(open(str(folder / ds / file)[:-4], "rb"))
+                roc = dill.load(open(folder / ds / file, "rb"))
+                for idx, res in res_file.items():
+                    task = copy.deepcopy(res['task'])
+                    random_seeds = res['task']['random_seed']
+                    del task['random_seed']
+                    if "word_max_length" in task['model_config']:
+                        del task['model_config']['word_max_length']
+                    new_idx = sha256(str(task).encode('utf-8')).hexdigest()
+                    if new_res.get(new_idx):
+                        new_res[new_idx]['result'] += res['result']
+                        new_res[new_idx]['task']['random_seed'] += random_seeds
+                    else:
+                        new_res[new_idx] = res
+
+                    for i, random_seed in enumerate(random_seeds):
+                        if roc[idx] and roc[idx].get(random_seed):
+                            new_roc[new_idx][random_seed] = roc[idx][random_seed]
+                            new_res[new_idx]['result'][i]['AUC'] = get_auc_multiclass(*roc[idx][random_seed])
+                            print(new_res[new_idx]['result'][i]['AUC'])
+                        else:
+                            print("id %s not in file %s" % (idx, file))
+            if file.endswith(".roc"):
+                for idx in new_res:
+                    print(new_res[idx]['task']['random_seed'])
+                    print(new_roc[idx].keys())
+                # dill.dump(new_roc, open(str(folder/ds/file), "wb"))
+                # dill.dump(new_res, open(str(folder/ds/file)[:-4], "wb"))
+
+
+def fix_roc(folder = vars.results_folder):
+    folder = pathlib.Path(folder)
+    for ds in os.listdir(folder):
+        for file in os.listdir(folder / ds):
+            if file.endswith(".roc"):
+                print(folder / ds / file)
+                roc = dill.load(open(folder / ds / file, "rb"))
+                new_roc = copy.deepcopy(roc)
+                for idx, roc in roc.items():
+                    for random_seed, l in roc.items():
+                        if type(l) is dict:
+                            print(idx, random_seed)
+                            new_roc[idx][random_seed] = l[random_seed]
+                            assert type(new_roc[idx][random_seed]) is list and len(new_roc[idx][random_seed]) == 2
+                # dill.dump(new_roc, open(folder / ds / file, "wb"))
+
+
+def fix_emotion_bert_roc():
+    file = "results/emotion/bert.roc"
+    results = dill.load(open(file[:-4], "rb"))
+    new_results = defaultdict(dict)
+    for idx, res in results.items():
+        new_results[idx] = res
+
+    roc = dill.load(open(file, "rb"))
+    for idx, value in roc.items():
+        if 'task' in value and 'result' in value:
+            new_results[idx]['task'] = value['task']
+            new_results[idx]['result'] = value['result']
+            del value['task']
+            del value['result']
+    # dill.dump(new_results, open(file[:-4], "wb"))
+    # dill.dump(roc, open(file, "wb"))
+
+
+
 if __name__ == "__main__":
-    remove_oversample(vars.results_folder)
+    folder = vars.results_folder
+    # change_roc(folder)
+    reformat_wiener_results("../results_wiener/")
+    # fix_roc(folder)

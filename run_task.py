@@ -8,6 +8,7 @@ import numpy as np
 import json
 import shutil
 import vars
+import copy
 
 from tqdm import tqdm
 from Config import (TaskConfig,
@@ -45,7 +46,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list,
     res[idx]['task']['random_seed'] = [task.random_seed]
 
     roc_res = {
-        idx: roc_list
+        idx: {task.random_seed: roc_list}
     }
 
     try:
@@ -54,13 +55,21 @@ def save_result(task: TaskConfig, results: dict, roc_list: list,
         print("This id is already in results:")
         print(idx in results)
         if idx in results:
+            print("random_seeds:")
+            print(results[idx]['task']['random_seed'])
             if results[idx]['task'].get("random_seed") and \
                     task.random_seed not in results[idx]['task']['random_seed']:
                 results[idx]['result'].extend(res[idx]['result'])
                 results[idx]['task']['random_seed'] += [task.random_seed]
+                roc_results[idx][task.random_seed] = roc_list
         else:
             results.update(res)
             roc_results.update(roc_res)
+
+        if idx not in roc_results:
+            roc_results.update(res)
+        if roc_results.get(idx) and task.random_seed not in roc_results.get(idx):
+            roc_results[idx][task.random_seed] = roc_list
 
         dill.dump(results, open(filename, "wb"))
         json.dump(results, open(filename + ".json", "w"))
@@ -188,7 +197,7 @@ def main(task: TaskConfig, model_path=""):
         probs_test, preds_test, labels_test = None, None, None
 
         print("\t epoch %s" % str(i))
-
+        loss_this_epoch_list = []
         model.train()
         clock_start = time()
         for batch in tqdm(train_dl, desc="Iteration"):
@@ -196,6 +205,7 @@ def main(task: TaskConfig, model_path=""):
             labels = torch.tensor(labels)
             label_feature = train_tds.label_feature
             loss = model.batch_train(texts, labels, label_feature.names, task.loss_func, train_tds.multi_label)
+            loss_this_epoch_list.append(loss.tolist())
             loss.backward()
             #
             # before_train = copy.deepcopy(dict(model.named_parameters()))
@@ -240,7 +250,8 @@ def main(task: TaskConfig, model_path=""):
 
         print("\tAccuracy so far:")
         print(acc_list)
-        print("Accuracy this epoch: %f" % res["Accuracy"])
+        print(res["AUC"])
+        print("Accuracy this epoch: %f." % (res["Accuracy"]))
 
         # If the accuracy is lower than previous results ...
         if acc_list and res["Accuracy"] <= acc_list[-1]:
@@ -256,39 +267,40 @@ def main(task: TaskConfig, model_path=""):
         acc_list.append(res["Accuracy"])
         print(res['Classification report'])
 
-        if not task.test:
-            res = valid_res
-            res['epochs'] = valid_i
-            res['seconds_avg_epoch'] = clocks / (i + 1)
+    if not task.test:
+        res = valid_res
+        res['epochs'] = valid_i
+        res['seconds_avg_epoch'] = clocks / (i + 1)
+        res['accuracy_history_by_epoch'] = acc_list
 
-            save_result(task, res, [labels_test.tolist(), probs_test.tolist()])
+        save_result(task, res, [labels_test.tolist(), probs_test.tolist()])
 
-            print("\t Result saved ...")
+        print("\t Result saved ...")
 
-            if model_path:
-                state_dict = model.state_dict()
-                if 'classifier.weight' in state_dict:
-                    del state_dict['classifier.weight']
-                    del state_dict['classifier.bias']
-                if 'cls.weight' in state_dict:
-                    del state_dict['cls.weight']
-                    del state_dict['cls.bias']
+        if model_path:
+            state_dict = model.state_dict()
+            if 'classifier.weight' in state_dict:
+                del state_dict['classifier.weight']
+                del state_dict['classifier.bias']
+            if 'cls.weight' in state_dict:
+                del state_dict['cls.weight']
+                del state_dict['cls.bias']
 
-                torch.save({
-                    "datasets_trained": datasets_trained + task.data.huggingface_dataset_name,
-                    "state_dict": state_dict,
-                    "model_config": task.model.to_dict(),
-                }, model_path)
+            torch.save({
+                "datasets_trained": datasets_trained + task.data.huggingface_dataset_name,
+                "state_dict": state_dict,
+                "model_config": task.model.to_dict(),
+            }, model_path)
 
-                print("\t Saving model at %s" % model_path)
+            print("\t Saving model at %s" % model_path)
 
-            else:
-                train_folder = "%s/%s" % (vars.trained_model_folder, task.model.model_name)
+        else:
+            train_folder = "%s/%s" % (vars.trained_model_folder, task.model.model_name)
 
-                os.makedirs(train_folder, exist_ok=True)
-                file_name = task.idx()
-                torch.save(model, "%s/%s" % (train_folder, file_name))
+            os.makedirs(train_folder, exist_ok=True)
+            file_name = task.idx()
+            # torch.save(model, "%s/%s" % (train_folder, file_name))
 
-                print("\t Model saved ...")
+            print("\t Model saved ...")
 
     return model

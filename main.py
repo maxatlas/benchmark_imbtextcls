@@ -6,9 +6,11 @@ import run_task as run_task
 import argparse
 import taskcards
 from Config import TaskConfig
-
+import shutil
 
 if __name__ == "__main__":
+    shutil.rmtree(vars.cache_folder+"/exp", ignore_errors=True)
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset_i',
                         '-i',
@@ -98,7 +100,7 @@ if __name__ == "__main__":
             model_path = vars.trained_model_cur_folder + "/" +\
                           "%s_layer_%i" % (task["model_config"]["model_name"],
                                            task["model_config"]["n_layers"])
-        try:
-            run_task.main(TaskConfig(**task), model_path=model_path)
-        except Exception as e:
-            print(e)
+        # try:
+        run_task.main(TaskConfig(**task), model_path=model_path)
+        # except Exception as e:
+        #     print(e)

@@ -9,7 +9,9 @@ from sklearn.metrics import (
     recall_score,
     precision_score,
     classification_report,
-    accuracy_score)
+    accuracy_score,
+    roc_auc_score
+)
 
 
 def metrics_frame(probs, preds, labels, label_names):
@@ -33,6 +35,8 @@ def metrics_frame(probs, preds, labels, label_names):
         fpr, tpr, thresholds = fpr.tolist(), tpr.tolist(), thresholds.tolist()
 
         auc_res = auc(fpr, tpr)
+    else:
+        auc_res = get_auc_multiclass(labels, probs)
 
     model_metrics = {
         "Accuracy": accuracy,
@@ -54,6 +58,7 @@ def set_random_seed(seed):
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
+
 
 def merge_multi_res(results):
     if results:
@@ -90,7 +95,7 @@ def merge_single_res(info):
     return out
 
 
-def get_res_df(info):
+def get_res_df_fixed(info):
     if not info:
         return pd.DataFrame([])
     results = {}
@@ -118,7 +123,7 @@ def get_res_df(info):
 
     pretrained = task['model_config']['pretrained_model_name']
 
-    model_id = "%s%s" %("pretrained" if pretrained else "",
+    model_id = "%s%s" % ("pretrained" if pretrained else "",
                         "layer-" + str(task['model_config']['num_layers']) if not pretrained else "")
     # model_id = "%s%s" %(model_id, "" if 'disable_intermediate' in task['model_config'] and task['model_config']['disable_intermediate'] else "-no-linear")
 
@@ -130,11 +135,59 @@ def get_res_df(info):
     return df
 
 
+def get_res_df(info, index, header, metrics):
+    """
+
+    :param info: res = dill.load(filename), info = res[id]
+    :param index: {names: (func, [input])} name, value
+    :param header: {names: (func, [input])}
+    :param metrics: {names: (func, [input])}
+    :return:
+    """
+    if not info:
+        return pd.DataFrame([])
+
+
+    header = pd.MultiIndex.from_product(
+        [func([info, *func_input]) for func, func_input in header.values()],
+        names=list(header.keys()))
+
+    index = pd.MultiIndex.from_product(
+        [func([info, *func_input]) for func, func_input in index.values()],
+        names=list(index.keys()))
+
+    out = []
+    res = info['result']
+    for metric in metrics.values():
+        for name, func in metric.items():
+            row = func[0]([res, *func[1]])
+            out.append(row)
+
+    out = np.array(out)
+    df = pd.DataFrame(out, columns=header, index=index)
+    # out.append(df)
+    # out = pd.concat(out)
+
+    return df
+
+
+def get_auc_multiclass(label_list: list, prob_list: list, multiclass: bool = True):
+    """
+
+    :param label_list:[l.index(1) for l in label_list]
+    :param prob_list:
+    :param multiclass:
+    :return: [auc macro, auc micro]
+    """
+    return [
+        roc_auc_score(label_list, prob_list, multi_class="ovr" if multiclass else "ovo", average="macro"),
+        roc_auc_score(label_list, prob_list, multi_class="ovr" if multiclass else "ovo", average="micro")]
+
 
 if __name__ == "__main__":
     import dill
 
-    infos = list(dill.load(open("results/sms_spam_balance_strategy_np.nan/bert", "rb")).values())
+    infos = list(dill.load(open("results_old/sms_spam_balance_strategy_np.nan/bert", "rb")).values())
     dfs = [get_res_df(info) for info in infos]
     pd.concat(dfs, axis=0, levels=0)  # different datasets
     out = pd.concat(dfs, axis=1, levels=0)  # different models

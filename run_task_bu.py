@@ -18,7 +18,7 @@ from time import time
 from task_utils import metrics_frame
 from dataset_utils import get_max_lengths
 
-shutil.rmtree(vars.cache_folder+"/results", ignore_errors=True)
+shutil.rmtree(vars.cache_folder+"/results_old", ignore_errors=True)
 
 
 def write_roc_list(debug_list: list, filename: str):
@@ -36,7 +36,7 @@ def save_result(task: TaskConfig, results: dict, roc_list: list,
         folder = "_".join(task.data.huggingface_dataset_name) \
                  + "_balance_strategy_%s" % task.data.balance_strategy
         folder = "%s/%s" % (vars.results_folder) if not cache \
-        else "%s/%s/%s" % (vars.cache_folder, "results", folder)
+        else "%s/%s/%s" % (vars.cache_folder, "results_old", folder)
 
     os.makedirs(folder, exist_ok=True)
 
@@ -211,7 +211,7 @@ def main(task: TaskConfig, model_path=""):
         print(acc_list)
         print("Accuracy this epoch: %f" % res["Accuracy"])
 
-        # If the accuracy is lower than half of the previous results ...
+        # If the accuracy is lower than half of the previous results_old ...
         if acc_list and res["Accuracy"] <= acc_list[-1]:
             threshold = len(acc_list) + task.early_stop_epoch
             print("###################%i %i#######################" % (i, threshold))

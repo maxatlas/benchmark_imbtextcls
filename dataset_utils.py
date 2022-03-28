@@ -120,7 +120,11 @@ def get_label_ids(labels, label_names):
     if type(labels) is int:
         labels = [labels]
     for i, label in enumerate(labels):
-        label_ids[label] = 1
+        if type(label) is str:
+            # label_ids[label] = 1
+            label_ids[label_names.index(label)] = 1
+        else:
+            label_ids[label] = 1
     return label_ids
 
 

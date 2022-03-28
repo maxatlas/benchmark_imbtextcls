@@ -120,6 +120,10 @@ def main(config: DataConfig):
         df = df.replace(replace_dict)
 
     elif type(label_features) is Sequence:
+        if type(label_features.feature) is not ClassLabel:
+            count_dict = dataset_utils.get_count_dict(df[config.label_field])
+            names = list(count_dict.keys())
+            label_features.feature = ClassLabel(names=names)
         label_features = [label_features.feature]
 
     #
@@ -131,5 +135,4 @@ def main(config: DataConfig):
     train, test, val = TaskDataset(train, label_features, config), \
                        TaskDataset(test, label_features, config), \
                        TaskDataset(val, label_features, config),
-
     return train, test, val, split_info

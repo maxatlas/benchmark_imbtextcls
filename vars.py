@@ -12,10 +12,18 @@ balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
                "ag_news", "amazon_reviews_multi", "dbpedia_14",
                "yelp_review_full", "yahoo_answers_topics",
                "amazon_polarity", "banking77", "amazon_reviews_multi_en"]
-imbalanced_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola", "lex_glue_ecthr_a",
+imbalanced_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola",
+                 "lex_glue_ecthr_a",
                  "lex_glue_ecthr_b", "hate_speech18", "emotion",
                  "ade_corpus_v2_Ade_corpus_v2_classification",
                  "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
+binary_ds = ["poem_sentiment", "sms_spam", "sst", "glue_cola",
+             "ade_corpus_v2_Ade_corpus_v2_classification", "imdb",
+             "glue_sst2", "amazon_polarity", "ag_news"]
+multiclass_ds = ["banking77", "emotion","hate_speech_offensive", "tweet_eval",
+                 "amazon_reviews_multi", "dbpedia_14", "yelp_review_full",
+                 "yahoo_answer_topics", "hate_speech18", ]
+multilabel_ds = ["go_emotions", "reuters21578_ModLewis"]
 dataset_names = balanced_ds + imbalanced_ds
 
 hf_cache_folder = "%s.cache/huggingface" % current
@@ -172,7 +180,14 @@ datasets_meta = [
     "sample_ratio_to_imb": 0.53,
     },
 # 14
-
+    {
+        "huggingface_dataset_name": ["reuters21578", "ModLewis"],
+        "label_field": "topics",
+        "text_fields": ["text"],
+        "cls_ratio_to_imb": 0.5,
+        "sample_ratio_to_imb": 0.53,
+        "multi_label": True
+    },
 {
     "huggingface_dataset_name": ["yahoo_answers_topics"],
     "label_field": "topic",

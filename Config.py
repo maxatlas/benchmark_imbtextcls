@@ -224,7 +224,6 @@ class ModelConfig:
                 self.dropout = dropout
                 self.activation = activation_function
                 self.tokenizer = None
-                self.word_max_length = word_max_length
 
                 if pretrained_tokenizer_name:  # with pretrained tokenizer.
                     assert any([transformer_name in pretrained_tokenizer_name
