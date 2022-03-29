@@ -75,7 +75,7 @@ def get_roc_curve_by_class(label_list: list, prob_list: list):
 def get_res_multi_file(folder=vars.results_folder):
     folder = Path(folder)
     datasets = [folder] if str(folder).split("/")[-1] in vars.dataset_names else [folder/ds for ds in os.listdir(folder)]
-    by_ds = []
+    by_ds, df = [], None
     for ds in tqdm(datasets):
         by_model =[]
         for model in os.listdir(ds):
@@ -92,10 +92,26 @@ def get_res_multi_file(folder=vars.results_folder):
 
 
 def get_res_per_file(file):
+    def label_text_length(inputs):
+        res = inputs[0]
+        ds_name = "_".join(res['task']['data_config']['huggingface_dataset_name'])
+        length_dict = vars.text_lengths[ds_name][0]
+        if length_dict[0.75] <= 10:
+            return ["small"]
+        elif length_dict[0.25] > 10 and length_dict[0.75] <= 50:
+            return ["medium"]
+        elif length_dict[0.75] > 50:
+            return ["large"]
+
     out = []
     pairs = dill.load(open(file, "rb")).items()
     for idx, results in pairs:
         index = {"dataset": (lambda x: ["_".join(x[0]['task']['data_config']['huggingface_dataset_name'])], [])}
+        index["cls type"] = (lambda x: ["binary" if "_".join(x[0]['task']['data_config']['huggingface_dataset_name']) in vars.binary_ds else "multiclass"], [])
+        index["label size"] = (lambda x: ["single" if "_".join(x[0]['task']['data_config']['huggingface_dataset_name']) not in vars.multilabel_ds else "multilabel"], [])
+        index["proofread"] = (lambda x: ["proofread" if "_".join(x[0]['task']['data_config']['huggingface_dataset_name']) in vars.proofread_ds else "no proofread"], [])
+        index["text_length"] = (label_text_length, [])
+
         header = {"model": (lambda x: [x[0]['task']['model_config']['model_name']], [])}
         header["num_layer"] = (lambda x: [x[0]['task']['model_config']['num_layers']], [])
         header['pretrained'] = (lambda x: [True if x[0]['task']['model_config']['pretrained_model_name'] else False], [])
@@ -178,7 +194,8 @@ if __name__ == "__main__":
     print("ye")
     # df = get_metric_value(["Accuracy", "Micro-F1"], res, "",
     #                       "1dce165479eece352b2887dcce81427e396cb5b6d2793c6825769122866aee9e", "")
-    merge_res_from_sources(["../results_wiener", "results"], "merged")
+    df = get_res_per_file("results/poem_sentiment/bert")
+    # merge_res_from_sources(["../results_wiener", "results"], "merged")
     # suffix = "_balance_strategy_None"
     # # df = get_res("poem_sentiment"+suffix, "lstm", False, "gpt2", 1)
     # df = get_df_2d(["gpt2", "gpt2", "gpt2"], [1, 3, 5], True)
@@ -186,8 +203,8 @@ if __name__ == "__main__":
     # # df = get_df_2d(["bert-base-uncased", "xlnet-base-cased", "gpt2"], [1, 3, 5], True, vars.imbalanced_ds)
     # # df.to_csv("csv/imbalanced_dataset_overview.csv")
     #
-    # # with pd.option_context('display.max_rows', None,
-    # #                        'display.max_columns', None,
-    # #                        'display.precision', 3,
-    # #                        ):
-    # #     print(df)
+    with pd.option_context('display.max_rows', None,
+                           'display.max_columns', None,
+                           'display.precision', 3,
+                           ):
+        print(df)

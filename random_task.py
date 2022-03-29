@@ -10,11 +10,12 @@ import dill
 import json
 import pandas as pd
 from build_dataset import split_df, TaskDataset
+from tqdm import tqdm
 from hashlib import sha256
 from pathlib import Path
 from datasets import load_dataset
 from Config import DataConfig
-
+from nltk.tokenize import word_tokenize
 from hashlib import sha256
 from collections import defaultdict
 from dataset_utils import get_imb_factor, get_count_dict
@@ -173,9 +174,11 @@ def get_ds_length(dmeta):
     overall_length = []
     for split in ds.values():
         for sample in split:
+            length = 0
             for text_field in text_fields:
                 text = sample[text_field]
-                overall_length.append(len(text))
+                length += len(word_tokenize(text))
+            overall_length.append(length)
     overall_length.sort()
     df = pd.DataFrame(overall_length)
 
@@ -185,11 +188,11 @@ def get_ds_length(dmeta):
 def get_ds_lengths(dmetas=None):
     if not dmetas:
         dmetas = vars.datasets_meta
-
-    for dmeta in dmetas:
-        print(dmeta['huggingface_dataset_name'])
+    out = {}
+    for dmeta in tqdm(dmetas):
         df = get_ds_length(dmeta)
-        print(df.quantile([0.25, 0.5, 0.75]))
+        out["_".join(dmeta['huggingface_dataset_name'])] = df.quantile([0.25, 0.5, 0.75]).to_dict()
+    return out
 
 
 from datasets.features.features import ClassLabel, Value, Sequence
@@ -368,6 +371,7 @@ def fix_emotion_bert_roc():
 
 if __name__ == "__main__":
     folder = vars.results_folder
+    print(get_ds_lengths())
     # change_roc(folder)
-    reformat_wiener_results("merged")
+    # reformat_wiener_results("merged")
     # fix_roc(folder)

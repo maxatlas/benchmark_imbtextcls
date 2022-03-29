@@ -23,8 +23,10 @@ binary_ds = ["poem_sentiment", "sms_spam", "sst", "glue_cola",
 multiclass_ds = ["banking77", "emotion","hate_speech_offensive", "tweet_eval",
                  "amazon_reviews_multi", "dbpedia_14", "yelp_review_full",
                  "yahoo_answer_topics", "hate_speech18", ]
-multilabel_ds = ["go_emotions", "reuters21578_ModLewis"]
+multilabel_ds = ["md_gender_bias", "go_emotions", "reuters21578_ModLewis"]
 dataset_names = balanced_ds + imbalanced_ds
+proofread_ds = ["poem_sentiment", "md_gender_bias", "sst", "glue_cola", "ade_corpus_v2_Ade_corpus_v2_classification", "glue_sst2", "ag_news", "dbpedia_14"]
+twitter_ds = ["emotion", "hate_speech_offensive"]
 
 hf_cache_folder = "%s.cache/huggingface" % current
 
@@ -274,3 +276,6 @@ datasets_meta = [
 ]
 
 datasets_meta = datasets_meta[: 14]
+
+text_lengths = {'poem_sentiment': {0: {0.25: 7.0, 0.5: 8.0, 0.75: 10.0}}, 'md_gender_bias': {0: {0.25: 11.0, 0.5: 14.0, 0.75: 17.0}}, 'sms_spam': {0: {0.25: 9.0, 0.5: 15.0, 0.75: 27.0}}, 'sst': {0: {0.25: 12.0, 0.5: 18.0, 0.75: 25.0}}, 'glue_cola': {0: {0.25: 6.0, 0.5: 8.0, 0.75: 11.0}}, 'banking77': {0: {0.25: 8.0, 0.5: 11.0, 0.75: 14.0}}, 'hate_speech18': {0: {0.25: 9.0, 0.5: 15.0, 0.75: 24.0}}, 'emotion': {0: {0.25: 11.0, 0.5: 17.0, 0.75: 25.0}}, 'ade_corpus_v2_Ade_corpus_v2_classification': {0: {0.25: 14.0, 0.5: 19.0, 0.75: 26.0}}, 'hate_speech_offensive': {0: {0.25: 11.0, 0.5: 18.0, 0.75: 27.0}}, 'go_emotions': {0: {0.25: 9.0, 0.5: 15.0, 0.75: 22.0}}, 'imdb': {0: {0.25: 151.0, 0.5: 210.0, 0.75: 343.0}}, 'ag_news': {0: {0.25: 36.0, 0.5: 43.0, 0.75: 50.0}}, 'reuters21578_ModLewis': {0: {0.25: 49.0, 0.5: 93.0, 0.75: 172.0}}}
+
