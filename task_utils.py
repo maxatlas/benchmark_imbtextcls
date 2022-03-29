@@ -2,6 +2,8 @@ import torch
 import random
 import pandas as pd
 import numpy as np
+
+import scipy.stats as st
 from sklearn.metrics import (
     f1_score,
     roc_curve,
@@ -167,7 +169,7 @@ def get_res_df(info, index, header, metrics):
             out.append(row)
 
     out = np.array(out)
-    df = pd.DataFrame(out, columns=header, index=index)
+    df = pd.DataFrame(out, columns=header, index=index.unique())
     # out.append(df)
     # out = pd.concat(out)
 
@@ -185,6 +187,11 @@ def get_auc_multiclass(label_list: list, prob_list: list, multiclass: bool = Tru
     return [
         roc_auc_score(label_list, prob_list, multi_class="ovr" if multiclass else "ovo", average="macro"),
         roc_auc_score(label_list, prob_list, multi_class="ovr" if multiclass else "ovo", average="micro")]
+
+
+def get_ci(l):
+    return st.t.interval(alpha=0.95, df=len(l.dropna()) - 1,
+                         loc=np.mean(l.dropna()), scale=st.sem(l.dropna()))
 
 
 if __name__ == "__main__":

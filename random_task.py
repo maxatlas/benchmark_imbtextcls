@@ -285,7 +285,13 @@ def change_roc(folder = vars.results_folder):
                         dill.dump(new_roc, open(str(folder/ds/file), "wb"))
 
 
-def reformat_wiener_results(folder = vars.results_folder):
+def reformat_wiener_results(folder = "merged"):
+    """
+    redo task idx with random seed and word max length deleted
+    also calculated AUC if haven't.
+    :param folder:
+    :return:
+    """
     # random seed
     folder = pathlib.Path(folder)
     for ds in os.listdir(folder):
@@ -316,12 +322,12 @@ def reformat_wiener_results(folder = vars.results_folder):
                             print(new_res[new_idx]['result'][i]['AUC'])
                         else:
                             print("id %s not in file %s" % (idx, file))
-            if file.endswith(".roc"):
+
                 for idx in new_res:
                     print(new_res[idx]['task']['random_seed'])
                     print(new_roc[idx].keys())
-                # dill.dump(new_roc, open(str(folder/ds/file), "wb"))
-                # dill.dump(new_res, open(str(folder/ds/file)[:-4], "wb"))
+                dill.dump(new_roc, open(str(folder/ds/file), "wb"))
+                dill.dump(new_res, open(str(folder/ds/file)[:-4], "wb"))
 
 
 def fix_roc(folder = vars.results_folder):
@@ -342,7 +348,7 @@ def fix_roc(folder = vars.results_folder):
 
 
 def fix_emotion_bert_roc():
-    file = "results/emotion/bert.roc"
+    file = "merged/emotion/bert.roc"
     results = dill.load(open(file[:-4], "rb"))
     new_results = defaultdict(dict)
     for idx, res in results.items():
@@ -363,5 +369,5 @@ def fix_emotion_bert_roc():
 if __name__ == "__main__":
     folder = vars.results_folder
     # change_roc(folder)
-    reformat_wiener_results("../results_wiener/")
+    reformat_wiener_results("merged")
     # fix_roc(folder)

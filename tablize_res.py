@@ -6,12 +6,46 @@ import pandas as pd
 import json
 import pathlib
 import numpy as np
-import scipy.stats as st
-from typing import List
+from tqdm import tqdm
 from pathlib import Path
 from task_utils import get_res_df, get_auc_multiclass
 from collections import defaultdict
 from sklearn.metrics import roc_curve, auc
+
+
+def create_matrix_from_df(df, level: int, axis: int):
+    """
+
+    :param df:
+    :param level:
+    :param axis:  1 for column, 0 for index
+    :return:
+    """
+    levels = df.index.unique(level) if axis == 0 else df.columns.unique(level)
+    names = df.index.names if axis == 0 else df.columns.names
+    matrix = np.ones((len(levels), len(levels)))
+    for i, key0 in enumerate(levels):
+        data0 = df.xs(key0, level=names[level], axis=axis)
+        for j, key1 in enumerate(levels):
+            data1 = df.xs(key1, level=names[level], axis=axis)
+            if i == j:
+                matrix[i, j] = np.nan
+            else:
+                rowcol_sum, colrow_sum, total_sum = 0, 0, 0
+                for key in data0.columns:
+                    if key not in data1.columns:
+                        continue
+                    rowcol = (data0.loc[:, key] > data1.loc[:, key]).sum()
+                    colrow = (data0.loc[:, key] < data1.loc[:, key]).sum()
+
+                    rowcol_sum += rowcol
+                    colrow_sum += colrow
+                    total_sum += rowcol + colrow
+
+                matrix[i,j] = rowcol_sum/total_sum
+                matrix[j,i] = colrow_sum/total_sum
+    df = pd.DataFrame(matrix, index=levels, columns=levels)
+    return df
 
 
 def get_roc_curve_by_class(label_list: list, prob_list: list):
@@ -38,128 +72,62 @@ def get_roc_curve_by_class(label_list: list, prob_list: list):
     return roc_curve_by_class
 
 
-def check_condition(condition: dict, res: dict):
-    """
-
-    :param condition: {"task" : {"data_config": {"balance_strategy": ["oversample", "undersample"]}}}
-    :param res: {"task:{...}, "result":{...}}
-    :return: True or False, {key: actual_value}
-    """
-    key, value = list(condition.keys())[0], list(condition.values())[0]
-    res_value = res[key]
-    if not condition:
-        return True, {}
-    if type(value) == dict:
-        return check_condition(value, res_value)
-    else:
-        if key == "huggingface_dataset_name":
-            res_value = "_".join(res_value)
-        if type(value) == list:
-            if type(res_value) == list:
-                return res_value == value, {key: res_value}
-            return res_value in value, {key: res_value}
-        return res_value == value, {key: res_value}
+def get_res_multi_file(folder=vars.results_folder):
+    folder = Path(folder)
+    datasets = [folder] if str(folder).split("/")[-1] in vars.dataset_names else [folder/ds for ds in os.listdir(folder)]
+    by_ds = []
+    for ds in tqdm(datasets):
+        by_model =[]
+        for model in os.listdir(ds):
+            if model in vars.model_names:
+                df = get_res_per_file(str(ds/model))
+                by_model.append(df)
+        if by_model:
+            by_model = pd.concat(by_model, axis=1, levels=0)
+            # by_model = by_model.groupby(by=by_model.columns.names, axis=1).mean()
+            by_ds.append(by_model)
+    if by_ds:
+        df = pd.concat(by_ds, axis=0, levels=0, sort=False)
+    return df
 
 
-def get_metric_value(metrics: list, res: dict, roc_file_path: str, idx: str, header, names):
-    """
-    should always return mean value and confidence intervals.
-
-    :param model_id: "layer-n loss_function"
-    :param metrics: ["precision f1"] Doesn't accept roc_curve though. Only result of a single value.
-    :param res:
-    :param roc_file_path:
-    :param idx:
-    :return: dataframe with metrics as index
-    """
-    results = res['result']
-    data, out = defaultdict(list), []
-    actual_metrics = copy.deepcopy(metrics)
-    for result in results:
-        for metric in metrics:
-            if metric.lower() in ["roc curve"]:
-                continue
-            value = result.get(metric)
-
-            if metric.lower() == "auc" and value == -1:
-                if metric in actual_metrics:
-                    actual_metrics.remove(metric)
-                    actual_metrics.extend(["AUC Macro", "AUC Micro"])
-                try:
-                    roc = dill.load(open(roc_file_path, "rb")).get(idx)
-                    if roc and type(roc) is list:
-                        macro_auc, micro_auc = get_auc_multiclass(*roc)
-                        data["AUC Macro"].append(macro_auc)
-                        data["AUC Micro"].append(micro_auc)
-                    else:
-                        data["AUC Macro"].append(np.nan)
-                        data["AUC Micro"].append(np.nan)
-                except EOFError:
-                    data["AUC Macro"].append(np.nan)
-                    data["AUC Micro"].append(np.nan)
-            else:
-                data[metric].append(value)
-
-    header = [[h] for h in header]
-    header = pd.MultiIndex.from_product(header+[actual_metrics], names=names+["Metrics"])
-    # for metric in metrics:
-    #     l = data[metric]
-    #     mean = np.mean(l)
-    #     ci = st.t.interval(alpha=0.95, df=len(l) - 1, loc=mean, scale=st.sem(l))
-    #     out.append([mean, ci])
-    # print(out)
-
-    # zip metric values
-    out = list(zip(*list(data.values())))
-    out = pd.DataFrame(out, columns=header)
-
-    return out
-
-
-def get_res_per_file(conditions: list, metrics: list, result_file: str):
-    """
-    Select metrics from results_old that satisfy conditions
-    panda frame, organized by conditions
-    :param res: a single result entity which corresponds to a task id: {task_id: {...}}
-    :param conditions:
-    :param metrics:
-    :return:
-    """
-    out = defaultdict(list)
-
-    results = dill.load(open(result_file, "rb"))
-    for idx, res in results.items():
-        if all([check_condition(condition, res)[0] for condition in conditions]):
-            end_conditions = [check_condition(condition, res)[1] for condition in conditions]
-            index = [list(condition.values())[0] for condition in end_conditions]
-            names = [list(condition.keys())[0] for condition in end_conditions]
-            value = get_metric_value(metrics, res, str(result_file) + ".roc", idx, index, names)
-            out[str(value.columns.tolist())].append(value)
-
-    rows = []
-    for row in out:
-        rows.append(pd.concat(out[row], ignore_index=True))
-
-    out = None
-    for row in rows:
-        if out is None:
-            out = row
-        else:
-            out = out.join(row)
-    return out
-
-
-def get_res_test(metrics: list, conditions: list = None, folder: str = vars.results_folder):
+def get_res_per_file(file):
     out = []
-    folder = pathlib.Path(folder)
-    for dataset in os.listdir(folder):
-        files = os.listdir(folder/dataset)
-        for model in vars.model_names:
-            if model not in files:
-                continue
-            out.append(get_res_per_file(conditions, metrics, folder/dataset/model))
+    pairs = dill.load(open(file, "rb")).items()
+    for idx, results in pairs:
+        index = {"dataset": (lambda x: ["_".join(x[0]['task']['data_config']['huggingface_dataset_name'])], [])}
+        header = {"model": (lambda x: [x[0]['task']['model_config']['model_name']], [])}
+        header["num_layer"] = (lambda x: [x[0]['task']['model_config']['num_layers']], [])
+        header['pretrained'] = (lambda x: [True if x[0]['task']['model_config']['pretrained_model_name'] else False], [])
+        header['balance_strategy'] = (lambda x: [x[0]['task']['data_config']['balance_strategy']], [])
+        header['loss function'] = (lambda x: [x[0]['task']['loss_func']], [])
+        metrics = defaultdict(dict)
 
-    out = pd.concat(out, ignore_index=True, axis=0)
+        auc_list = None
+        try:
+            auc_list = dill.load(open(file + ".roc", "rb"))[idx]
+        except FileNotFoundError:
+            print("No such file as %s.roc" % (file))
+        except KeyError:
+            print("No id (%s) in file %s.roc" % (idx, file))
+        if results and auc_list:
+            random_seeds = results['task']['random_seed']
+            for i, random_seed in enumerate(random_seeds):
+                if random_seed in auc_list:
+                    # print(random_seeds, auc_list.keys())
+                    metrics["AUC"][random_seed] = (lambda x: x[0][i]["AUC"], np.nan, []) if not auc_list else (lambda x: get_auc_multiclass(x[1], x[2]), auc_list[random_seed])
+                else:
+                    metrics["AUC"][random_seed] =(lambda x: [np.nan, np.nan], [])
+                metrics['F1'][random_seed] = (lambda x: [x[0][i]['Macro-F1'], x[0][i]['Micro-F1']], [])
+                metrics['Epochs'][random_seed] = (lambda x: [x[0][i]['epochs'],np.nan], [])
+                metrics['Seconds/e'][random_seed] = (lambda x: [x[0][i]['seconds_avg_epoch'], np.nan], [])
+            header[""] = (lambda x: ["Macro", "Micro"], [])
+            index["Metrics"] = (lambda x: list(metrics.keys()), [])
+            index["random_seed"] = (lambda x: random_seeds, [])
+
+            df = get_res_df(results, header=header, index=index, metrics=metrics)
+            out.append(df)
+    out = pd.concat(out, axis=1, levels=1)
     return out
 
 
@@ -190,6 +158,10 @@ def merge_res_from_sources(folders, destination):
                     for idx, roc_list in roc.items():
                         if idx not in roc_results:
                             roc_results.update({idx: roc_list})
+                        else:
+                            for random_seed in roc_list:
+                                if random_seed not in roc_results[idx]:
+                                    roc_results[idx][random_seed] = roc_list[idx][random_seed]
                 except FileNotFoundError:
                     continue
                 except EOFError:
@@ -202,106 +174,11 @@ def merge_res_from_sources(folders, destination):
                 dill.dump(roc_results, open(destination/rfile, "wb"))
 
 
-def get_res(data: str, model: str,
-            pretrained_model: bool,
-            pretrained_tokenizer: str = "",
-            size: int = None,
-            remove_linear: bool = True,
-            loss_funcs=None):
-    """
-    1. Determine what results_old to select.
-    2. Present.
-
-    :param loss_funcs:
-    :param data:
-    :param model:
-    :param pretrained_model:
-    :param pretrained_tokenizer:
-    :param size:
-    :param remove_linear:
-    :return:
-    """
-    if loss_funcs is None:
-        loss_funcs = set()
-    file_name = Path("merged", data, model)
-    try:
-        res_objects = dill.load(open(file_name, "rb"))
-    except FileNotFoundError:
-        print(file_name)
-        return []
-
-    out = []
-
-    for idx, res in res_objects.items():
-        if res["task"]["data_config"]["label_field"] == "product_category":
-            continue
-        model = res["task"]["model_config"]
-        if pretrained_model:
-            if model["pretrained_model_name"]:
-                out.append(res)
-        else:
-            if model["pretrained_tokenizer_name"] == pretrained_tokenizer and \
-                    model["num_layers"] == size and (model.get("disable_selfoutput") == remove_linear
-                                                     or model.get("disable_selfoutput") is None):
-                out.append(res)
-        if not loss_funcs or res['task']['loss_func'] in loss_funcs:
-            out.append(res)
-    # out = merge_multi_res(out)
-    return out
-
-
-def get_df_2d(pretrained_tokenizers: List[str],
-              sizes: List[int],
-              pretrained_model: bool = False,
-              datasets: list = None,
-              models: list = None,
-              loss_funcs=None):
-    """
-
-    :param pretrained_tokenizers:
-    :param sizes:
-    :param pretrained_model:
-    :param datasets:
-    :param models:
-    :param loss_funcs: available options: ["CrossEntropyLoss()", "DiceLoss()", "TverskyLoss()", "FocalLoss()"]
-    :return:
-    """
-    if loss_funcs is None:
-        loss_funcs = []
-    if not datasets:
-        datasets = os.listdir(vars.results_folder)
-    if not models:
-        models = vars.model_names
-    by_data = []
-    size_pretrain = list(zip(sizes, pretrained_tokenizers))
-    for data in datasets:
-        by_model = []
-        for model in models:
-            res = []
-            for size, pretrained_tokenizer in size_pretrain:
-                res += get_res(data, model, False, pretrained_tokenizer, size, True,
-                               loss_funcs=loss_funcs)
-            if pretrained_model:
-                res += get_res(data, model, True)
-            df = [get_res_df(res0) for res0 in res]
-            by_model.extend(df)
-
-        if by_model:
-            by_model = pd.concat(by_model, axis=1, levels=0)
-            by_model = by_model.groupby(by=by_model.columns.names, axis=1).mean()
-            by_data.append(by_model)
-
-    if by_data:
-        by_data = pd.concat(by_data, axis=0, levels=0)
-
-    return by_data
-
-
 if __name__ == "__main__":
     print("ye")
     # df = get_metric_value(["Accuracy", "Micro-F1"], res, "",
     #                       "1dce165479eece352b2887dcce81427e396cb5b6d2793c6825769122866aee9e", "")
-    # merge_res_from_sources(["results_weiner", "results_old"], "merged")
+    merge_res_from_sources(["../results_wiener", "results"], "merged")
     # suffix = "_balance_strategy_None"
     # # df = get_res("poem_sentiment"+suffix, "lstm", False, "gpt2", 1)
     # df = get_df_2d(["gpt2", "gpt2", "gpt2"], [1, 3, 5], True)

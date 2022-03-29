@@ -218,6 +218,7 @@ class ModelConfig:
             else:  # Customized non transformer models
                 model_config(self, padding, dilation, stride, filters, hidden_size)
 
+                self.word_max_length = word_max_length
                 self.emb_path = emb_path
                 self.cls_hidden_size = hidden_size
 

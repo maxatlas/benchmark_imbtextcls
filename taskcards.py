@@ -70,7 +70,7 @@ def scenario_0(dc: dict, args):
 
 
 def scenario_1(args):
-    dcs = [vars.datasets_meta[args.dataset_i]] if args.dataset_i != None else vars.datasets_meta[:14]
+    dcs = [vars.datasets_meta[args.dataset_i]] if args.dataset_i != None else vars.datasets_meta[:13]
     task_cards = []
 
     models = list(vars.model_names) if not args.model else [args.model]
