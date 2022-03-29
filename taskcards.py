@@ -77,6 +77,7 @@ def scenario_1(args):
     for dc in dcs:
         dc["balance_strategy"] = args.balance_strategy
         dc["make_it_imbalanced"] = args.make_it_imbalanced
+        dc['limit'] = args.limit
 
         loss_funcs = [BCEWithLogitsLoss] if dc.get('multi_label') else [CrossEntropyLoss]
 

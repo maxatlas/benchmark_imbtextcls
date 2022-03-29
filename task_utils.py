@@ -36,7 +36,10 @@ def metrics_frame(probs, preds, labels, label_names):
 
         auc_res = auc(fpr, tpr)
     else:
-        auc_res = get_auc_multiclass(labels, probs)
+        try:
+            auc_res = get_auc_multiclass(labels, probs)
+        except Exception:
+            pass
 
     model_metrics = {
         "Accuracy": accuracy,
