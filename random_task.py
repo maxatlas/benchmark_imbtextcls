@@ -288,7 +288,7 @@ def change_roc(folder = vars.results_folder):
                         dill.dump(new_roc, open(str(folder/ds/file), "wb"))
 
 
-def reformat_wiener_results(folder = "merged"):
+def reformat_results(folder = "merged"):
     """
     redo task idx with random seed and word max length deleted
     also calculated AUC if haven't.
@@ -321,8 +321,8 @@ def reformat_wiener_results(folder = "merged"):
                     for i, random_seed in enumerate(random_seeds):
                         if roc[idx] and roc[idx].get(random_seed):
                             new_roc[new_idx][random_seed] = roc[idx][random_seed]
-                            new_res[new_idx]['result'][i]['AUC'] = get_auc_multiclass(*roc[idx][random_seed])
-                            print(new_res[new_idx]['result'][i]['AUC'])
+                            # new_res[new_idx]['result'][i]['AUC'] = get_auc_multiclass(*roc[idx][random_seed])
+                            # print(new_res[new_idx]['result'][i]['AUC'])
                         else:
                             print("id %s not in file %s" % (idx, file))
 
@@ -370,8 +370,8 @@ def fix_emotion_bert_roc():
 
 
 if __name__ == "__main__":
-    folder = vars.results_folder
-    print(get_ds_lengths())
+    # folder = vars.results_folder
+    # print(get_ds_lengths())
     # change_roc(folder)
-    # reformat_wiener_results("merged")
+    reformat_results("merged")
     # fix_roc(folder)

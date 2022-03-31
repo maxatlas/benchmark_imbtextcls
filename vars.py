@@ -19,10 +19,7 @@ imbalanced_ds = ["poem_sentiment", "sms_spam", "lex_glue_scotus", "glue_cola",
                  "hate_speech_offensive", "go_emotions", "tweet_eval_emoji"]
 binary_ds = ["poem_sentiment", "sms_spam", "sst", "glue_cola",
              "ade_corpus_v2_Ade_corpus_v2_classification", "imdb",
-             "glue_sst2", "amazon_polarity", "ag_news"]
-multiclass_ds = ["banking77", "emotion","hate_speech_offensive", "tweet_eval",
-                 "amazon_reviews_multi", "dbpedia_14", "yelp_review_full",
-                 "yahoo_answer_topics", "hate_speech18", ]
+             "glue_sst2", "amazon_polarity", ]
 multilabel_ds = ["md_gender_bias", "go_emotions", "reuters21578_ModLewis"]
 dataset_names = balanced_ds + imbalanced_ds
 proofread_ds = ["poem_sentiment", "md_gender_bias", "sst", "glue_cola", "ade_corpus_v2_Ade_corpus_v2_classification", "glue_sst2", "ag_news", "dbpedia_14"]
@@ -30,9 +27,9 @@ twitter_ds = ["emotion", "hate_speech_offensive"]
 
 hf_cache_folder = "%s.cache/huggingface" % current
 
-model_names = ["bert", "xlnet", "gpt2",
-               "lstm", "lstmattn", "cnn", "rcnn", "mlp", "han"]
-transformer_names = model_names[:3]
+model_names = ["lstm", "lstmattn", "cnn", "rcnn", "mlp", "han",
+               "bert", "gpt2", "xlnet",]
+transformer_names = model_names[-3:]
 transformer_pretrain = \
     ["bert-base-uncased", "xlnet-base-cased", "gpt2"]
 customized_model_names = model_names[3:]
@@ -166,21 +163,21 @@ datasets_meta = [
 # 12
 
 {
-    "huggingface_dataset_name": ["imdb"],
-    "label_field": "label",
-    "text_fields": ["text"],
-    "cls_ratio_to_imb": 0.5,
-    "sample_ratio_to_imb": 0.5,
-},
-# 13
-
-{
     "huggingface_dataset_name": ["ag_news"],
     "label_field": "label",
     "text_fields": ["text"],
     "cls_ratio_to_imb": 0.5,
     "sample_ratio_to_imb": 0.53,
     },
+# 13
+
+{
+    "huggingface_dataset_name": ["imdb"],
+    "label_field": "label",
+    "text_fields": ["text"],
+    "cls_ratio_to_imb": 0.5,
+    "sample_ratio_to_imb": 0.5,
+},
 # 14
     {
         "huggingface_dataset_name": ["reuters21578", "ModLewis"],

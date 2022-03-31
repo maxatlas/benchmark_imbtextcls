@@ -73,7 +73,7 @@ if __name__ == "__main__":
                         default=None)
     parser.add_argument("--qkv_size",
                         type=int,
-                        default=768)
+                        default=None)
     parser.add_argument("--n_heads",
                         type=int,
                         default=1)

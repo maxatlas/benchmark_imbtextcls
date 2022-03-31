@@ -128,7 +128,7 @@ class ModelConfig:
                  disable_intermediate=True,
                  add_pooling_layer=False,
                  n_heads=1,
-                 qkv_size=768,
+                 qkv_size=None,
                  ):
 
         self.model_name = model_name.lower()

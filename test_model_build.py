@@ -32,8 +32,8 @@ if __name__ == "__main__":
 
     labels = torch.tensor(labels)
 
-    mc = ModelConfig("bert", n_labels,
-                     pretrained_tokenizer_name="gpt2",
+    mc = ModelConfig("xlnet", n_labels,
+                     pretrained_model_name="xlnet-base-cased",
                      emb_path="%sparams/emb_layer_gpt2" % vars.current,
                      n_layers=1,
                      qkv_size=768,

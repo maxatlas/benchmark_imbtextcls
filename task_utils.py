@@ -190,8 +190,9 @@ def get_auc_multiclass(label_list: list, prob_list: list, multiclass: bool = Tru
 
 
 def get_ci(l):
-    return st.t.interval(alpha=0.95, df=len(l.dropna()) - 1,
-                         loc=np.mean(l.dropna()), scale=st.sem(l.dropna()))
+    l = l.dropna().to_numpy()
+    return st.t.interval(alpha=0.95, df=len(l) - 1,
+                         loc=np.mean(l), scale=st.sem(l))
 
 
 if __name__ == "__main__":
