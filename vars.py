@@ -21,7 +21,6 @@ binary_ds = ["poem_sentiment", "sms_spam", "sst", "glue_cola",
              "ade_corpus_v2_Ade_corpus_v2_classification", "imdb",
              "glue_sst2", "amazon_polarity", ]
 multilabel_ds = ["md_gender_bias", "go_emotions", "reuters21578_ModLewis"]
-dataset_names = balanced_ds + imbalanced_ds
 proofread_ds = ["poem_sentiment", "md_gender_bias", "sst", "glue_cola", "ade_corpus_v2_Ade_corpus_v2_classification", "glue_sst2", "ag_news", "dbpedia_14"]
 twitter_ds = ["emotion", "hate_speech_offensive"]
 
@@ -272,7 +271,90 @@ datasets_meta = [
     },
 ]
 
-datasets_meta = datasets_meta[: 14]
+datasets_meta = datasets_meta[: 13]
+dataset_names = ["_".join(ds['huggingface_dataset_name']) for ds in datasets_meta]
 
 text_lengths = {'poem_sentiment': {0: {0.25: 7.0, 0.5: 8.0, 0.75: 10.0}}, 'md_gender_bias': {0: {0.25: 11.0, 0.5: 14.0, 0.75: 17.0}}, 'sms_spam': {0: {0.25: 9.0, 0.5: 15.0, 0.75: 27.0}}, 'sst': {0: {0.25: 12.0, 0.5: 18.0, 0.75: 25.0}}, 'glue_cola': {0: {0.25: 6.0, 0.5: 8.0, 0.75: 11.0}}, 'banking77': {0: {0.25: 8.0, 0.5: 11.0, 0.75: 14.0}}, 'hate_speech18': {0: {0.25: 9.0, 0.5: 15.0, 0.75: 24.0}}, 'emotion': {0: {0.25: 11.0, 0.5: 17.0, 0.75: 25.0}}, 'ade_corpus_v2_Ade_corpus_v2_classification': {0: {0.25: 14.0, 0.5: 19.0, 0.75: 26.0}}, 'hate_speech_offensive': {0: {0.25: 11.0, 0.5: 18.0, 0.75: 27.0}}, 'go_emotions': {0: {0.25: 9.0, 0.5: 15.0, 0.75: 22.0}}, 'imdb': {0: {0.25: 151.0, 0.5: 210.0, 0.75: 343.0}}, 'ag_news': {0: {0.25: 36.0, 0.5: 43.0, 0.75: 50.0}}, 'reuters21578_ModLewis': {0: {0.25: 49.0, 0.5: 93.0, 0.75: 172.0}}}
 
+header_meta = {
+    "model": {
+        "values": model_names,
+        "func": (lambda x: x[0]['task']['model_config']['model_name'], []),
+    },
+    "num_layer": {
+        "values": [1, 3, 5],
+        "func": (lambda x: x[0]['task']['model_config']['num_layers'], []),
+    },
+    "pretrained": {
+        "values": [True, False],
+        "func": (lambda x: True if x[0]['task']['model_config']['pretrained_model_name'] else False, []),
+    },
+    "balance_strategy": {
+        "values": ["oversample", "undersample", None],
+        "func": (lambda x: x[0]['task']['data_config']['balance_strategy'], []),
+    },
+    "loss_func": {
+        "values": ["CrossEntropyLoss()", "DiceLoss()", "TverskyLoss()", "FocalLoss()", "BCEWithLogitsLoss()"],
+        "func": (lambda x: x[0]['task']['loss_func'], []),
+    },
+    "qkv_size": {
+        "values": [100, 768],
+        "func": (lambda x: 768 if not x[0]['task']['model_config'].get("qkv_size") else x[0]['task']['model_config'].get("qkv_size"), []),
+    },
+    "pretrained_tokenizer": {
+        "values": transformer_pretrain,
+        "func": (lambda x: x[0]['task']['model_config'].get("pretrained_tokenizer_name"), []),
+    },
+    "": {
+        "values": ["Macro", "Micro"],
+        "func": (lambda x: None, [])
+    }
+}
+
+
+def label_text_length(inputs):
+    res = inputs[0]
+    ds_name = "_".join(res['task']['data_config']['huggingface_dataset_name'])
+    length_dict = text_lengths[ds_name][0]
+    if length_dict[0.75] <= 10:
+        return "small"
+    else:
+        if length_dict[0.25] < 10:
+            return "small"
+        elif length_dict[0.25] > 10 and length_dict[0.75] <= 50:
+            return "medium"
+        elif length_dict[0.75] > 50:
+            return "large"
+
+
+index_meta = {
+    "dataset": {
+        "values": dataset_names,
+        "func": (lambda x: "_".join(x[0]['task']['data_config']['huggingface_dataset_name']), []),
+    },
+    "cls_type": {
+        "values": ["binary", "multiclass"],
+        "func": (lambda x: "binary" if "_".join(x[0]['task']['data_config']['huggingface_dataset_name']) in binary_ds else "multiclass", []),
+    },
+    "label_type": {
+        "values": ["single", "multilabel"],
+        "func": (lambda x: "single" if "_".join(x[0]['task']['data_config']['huggingface_dataset_name']) not in multilabel_ds else "multilabel", []),
+    },
+    "proofread": {
+        "values": [True, False],
+        "func": (lambda x: "_".join(x[0]['task']['data_config']['huggingface_dataset_name']) in proofread_ds, []),
+    },
+    "text_length": {
+        "values": ["small", "medium", "large"],
+        "func": (label_text_length, []),
+    },
+    "metrics": {
+        "values": ["AUC", "F1", "Epochs", "Seconds/e"],
+        "func": (lambda x: None, [])
+    },
+    "random_seed": {
+        "values": [129, 29, 444],
+        "func": (lambda x: None, [])
+    }
+
+}

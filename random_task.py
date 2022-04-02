@@ -309,8 +309,10 @@ def reformat_results(folder = "merged"):
                     task = copy.deepcopy(res['task'])
                     random_seeds = res['task']['random_seed']
                     del task['random_seed']
+                    del task['batch_size']
                     if "word_max_length" in task['model_config']:
                         del task['model_config']['word_max_length']
+
                     new_idx = sha256(str(task).encode('utf-8')).hexdigest()
                     if new_res.get(new_idx):
                         new_res[new_idx]['result'] += res['result']

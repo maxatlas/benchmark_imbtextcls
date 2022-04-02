@@ -2,7 +2,6 @@ import torch
 import random
 import pandas as pd
 import numpy as np
-
 import scipy.stats as st
 from sklearn.metrics import (
     f1_score,
@@ -14,6 +13,9 @@ from sklearn.metrics import (
     accuracy_score,
     roc_auc_score
 )
+
+
+idx = pd.IndexSlice
 
 
 def metrics_frame(probs, preds, labels, label_names):
@@ -140,40 +142,40 @@ def get_res_df_fixed(info):
     return df
 
 
-def get_res_df(info, index, header, metrics):
+def get_res_df(info, index, header, metrics, out = None):
     """
 
     :param info: res = dill.load(filename), info = res[id]
-    :param index: {names: (func, [input])} name, value
-    :param header: {names: (func, [input])}
+    :param index: {names: {values:[], func:(func, input)}} name, value
+    :param header: {names: {values:[], func:(func, input)}}
     :param metrics: {names: (func, [input])}
     :return:
     """
     if not info:
         return pd.DataFrame([])
 
+    if out is None:
 
-    header = pd.MultiIndex.from_product(
-        [func([info, *func_input]) for func, func_input in header.values()],
-        names=list(header.keys()))
+        col_index = pd.MultiIndex.from_product(
+            [values['values'] for values in header.values()],
+            names=list(header.keys()))
 
-    index = pd.MultiIndex.from_product(
-        [func([info, *func_input]) for func, func_input in index.values()],
-        names=list(index.keys()))
+        row_index = pd.MultiIndex.from_product(
+            [values['values'] for values in index.values()],
+            names=list(index.keys()))
+        out = pd.DataFrame(np.empty((len(row_index), len(col_index))) * np.nan,
+                       columns=col_index, index=row_index.unique())
 
-    out = []
     res = info['result']
-    for metric in metrics.values():
+    for key, metric in metrics.items():
         for name, func in metric.items():
             row = func[0]([res, *func[1]])
-            out.append(row)
-
-    out = np.array(out)
-    df = pd.DataFrame(out, columns=header, index=index.unique())
-    # out.append(df)
-    # out = pd.concat(out)
-
-    return df
+            i = [values['func'][0]([info, values['func'][1]]) for values in index.values()]
+            i[-2:] = [key, name]
+            j = [values['func'][0]([info, values['func'][1]]) for values in header.values()]
+            j[-1] = slice(None)
+            out.loc[tuple(i), tuple(j)] = row
+    return out
 
 
 def get_auc_multiclass(label_list: list, prob_list: list, multiclass: bool = True):
@@ -193,6 +195,9 @@ def get_ci(l):
     l = l.dropna().to_numpy()
     return st.t.interval(alpha=0.95, df=len(l) - 1,
                          loc=np.mean(l), scale=st.sem(l))
+
+
+# def add_missing_columns(df):
 
 
 if __name__ == "__main__":

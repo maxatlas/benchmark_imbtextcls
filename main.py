@@ -36,7 +36,7 @@ if __name__ == "__main__":
     parser.add_argument('--epoch',
                         '-e',
                         type=int,
-                        default=3)
+                        default=200)
     parser.add_argument('--layers',
                         '-l',
                         type=int,

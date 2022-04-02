@@ -340,6 +340,11 @@ class TaskConfig:
 
         task['loss_func'] = str(task['loss_func'])
         task['optimizer'] = str(task['optimizer'])
+        del task['batch_size']
+        if "emb_path" in task["model_config"]:
+            del task['model_config']['emb_path']
+        if "word_max_length" in task['model_config']:
+            del task['model_config']['word_max_length']
         try:
             del task['model']
             del task['data']
