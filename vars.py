@@ -31,7 +31,7 @@ model_names = ["lstm", "lstmattn", "cnn", "rcnn", "mlp", "han",
 transformer_names = model_names[-3:]
 transformer_pretrain = \
     ["bert-base-uncased", "xlnet-base-cased", "gpt2"]
-customized_model_names = model_names[3:]
+customized_model_names = model_names[:-3]
 
 customized_tokenizer_names = ["nltk", "spacy"]
 

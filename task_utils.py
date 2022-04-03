@@ -14,6 +14,7 @@ from sklearn.metrics import (
     roc_auc_score
 )
 
+import vars
 
 idx = pd.IndexSlice
 
@@ -142,6 +143,33 @@ def get_res_df_fixed(info):
     return df
 
 
+def create_empty_df(index_names: list, header_names: list):
+    """
+
+    :param index: [name]
+    :param header: [name]
+    :return:
+    """
+    header, index = {}, {}
+    for name in header_names:
+        header[name] = vars.header_meta[name]
+    for name in index_names:
+        index[name] = vars.index_meta[name]
+
+    col_index = pd.MultiIndex.from_product(
+        [values['values'] for values in header.values()],
+        names=list(header.keys()))
+
+    row_index = pd.MultiIndex.from_product(
+        [values['values'] for values in index.values()],
+        names=list(index.keys()))
+
+    out = pd.DataFrame(np.empty((len(row_index), len(col_index)), dtype=object),
+                       columns=col_index, index=row_index.unique())
+
+    return out
+
+
 def get_res_df(info, index, header, metrics, out = None):
     """
 
@@ -155,7 +183,6 @@ def get_res_df(info, index, header, metrics, out = None):
         return pd.DataFrame([])
 
     if out is None:
-
         col_index = pd.MultiIndex.from_product(
             [values['values'] for values in header.values()],
             names=list(header.keys()))

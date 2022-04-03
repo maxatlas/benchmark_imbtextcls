@@ -1,5 +1,6 @@
 import pandas as pd
 
+import task_utils
 import vars
 from tablize_res import *
 import numpy as np
@@ -11,26 +12,28 @@ from statsmodels.formula.api import ols
 idx = pd.IndexSlice
 
 
-def layer_value(df):
+def df_anova1(df, axis, level):
+    x = []
+    for name, group in df.groupby(axis=axis, level=level):
+        group = group.to_numpy().reshape(-1)
+        group = group[~np.isnan(group)]
+        x.append(group.tolist())
+
+    return f_oneway(*x)
+
+
+def df_lm(df, axis, level):
     x, y = [], []
-    for name, group in df.groupby(axis=1, level=1):
+    for name, group in df.groupby(axis=axis, level=level):
         group = group.to_numpy().reshape(-1)
         group = group[~np.isnan(group)]
         x += group.tolist()
         y += [name] * len(group.tolist())
 
-        # one-way ANOVA
-        # x.append(group)
-    # f_oneway(*x)
-
     return linregress(x, y, alternative="two-sided")
 
 
-def twowayanova(df, col_levels, row_levels):
-    def _groupby(df, axis, level):
-        if not level:
-            return None, df
-        return df.groupby(axis=axis, level=level)
+def df_anova2(df, col_levels, row_levels):
     if type(col_levels) is not list or type(col_levels) is not tuple:
         col_levels = [col_levels]
     if type(row_levels) is not list or type(row_levels) is not tuple:
@@ -38,19 +41,31 @@ def twowayanova(df, col_levels, row_levels):
 
     assert len(col_levels) + len(row_levels) == 2
     if not row_levels:
-        out = _twowayanova(df, 1, col_levels)
+        return _df_anova2(df, 1, col_levels)
     elif not col_levels:
-        out = _twowayanova(df, 0, row_levels)
+        return _df_anova2(df, 0, row_levels)
     else:
         if type(col_levels[0]) is int:
             col_levels = [df.columns.names[level] for level in col_levels]
         if type(row_levels[0]) is int:
             row_levels = [df.index.names[level] for level in row_levels]
-        for name, group in df.groupby(1, level=col_levels):
-            print("ok")
+        df_dict = {"x": [], col_levels[0]: [], row_levels[0]: []}
+        for col_name, group in df.groupby(axis=1, level=col_levels):
+            for row_name, group in group.groupby(axis=0, level=row_levels):
+                group = group.to_numpy().reshape(-1)
+                group = group[~np.isnan(group)]
+                df_dict["x"] += group.tolist()
+                df_dict[col_levels[0]] += [col_name] * len(group)
+                df_dict[row_levels[0]] += [row_name] * len(group)
+    df = pd.DataFrame(df_dict)
+
+    model = ols('x ~ C(%s) + C(%s) + C(%s):C(%s)' % (col_levels[0], row_levels[0], col_levels[0], row_levels[0]),
+                data=df).fit()
+    out = sm.stats.anova_lm(model, type=2)
+    return out
 
 
-def _twowayanova(df, axis, levels):
+def _df_anova2(df, axis, levels):
     assert (type(levels) is list or type(levels) is tuple) and len(levels) == 2
     df_dict = {"x": []}
     if type(levels[0]) is int:
@@ -97,23 +112,20 @@ def get_df_ci(df, col_levels, row_levels):
     def _get_ci(x):
         x = x.to_numpy().reshape(-1)
         x = x[~np.isnan(x)]
-        return [(x.mean() + 1.96 * x.std() / np.sqrt(len(x)),
-                x.mean() - 1.96 * x.std() / np.sqrt(len(x)))]
+        return (x.mean() + 1.96 * x.std() / np.sqrt(len(x)),
+                x.mean() - 1.96 * x.std() / np.sqrt(len(x)))
 
-    out = []
-    for name, col in df.groupby(col_levels, axis=1):
-        rows = []
-        for name, group in col.groupby(row_levels):
-            ci = group.apply(_get_ci)
-            cell_index = [[group.index[0][group.index.names.index(l)]] for l in row_levels]
-            ci = ci.set_index(cell_index).rename_axis(row_levels)
-            rows.append(ci)
+    if type(col_levels) is int or type(col_levels[0]) is int:
+        col_levels = [df.columns.names[l] for l in col_levels]
+    if type(row_levels) is int or type(row_levels[0]) is int:
+        row_levels = [df.index.names[l] for l in row_levels]
 
-        rows = pd.concat(rows, axis=0)
-        out.append(rows)
-
-    out = pd.concat(out, axis=1)
-
+    out = task_utils.create_empty_df(row_levels, col_levels)
+    for col_name, col in df.groupby(col_levels, axis=1):
+        for row_name, group in col.groupby(row_levels):
+            ci = _get_ci(group)
+            out.loc[row_name, col_name] = ci
+    out = out.dropna(0, "all")
     return out
 
 
@@ -121,12 +133,15 @@ if __name__ == "__main__":
     df = dill.load(open("merged.df", "rb"))
     df = df.dropna(0, "all")
     df = df.dropna(1, "all")
-    df = df.loc[idx[:, :, :, :, :, "AUC", :], idx[:, :, :, :, :, :, "gpt2"]]
-    # df = df.loc[idx[:, :, :, :, :, "Epochs", :], idx[:, 1, False, None, "CrossEntropyLoss()", 768, "gpt2"]]
+    df = df.loc[idx[:, :, :, :, :, "AUC", :], idx[:, :, :, :, :, :, :]]
+    # index: dataset, cls_type, label_type, proofread, text_length, metrics, random_seed
+    # column: model, num_layer, pretrained, balance_strategy, loss, qkv_size, tokenizer_pretrained
     # df = layer_value(df)
-    df = _twowayanova(df, 1, [0, 4])
+    # df = df_anova1(df, 0, 0)
+    # df = df_anova2(df, 0, 0)
+    # df = _df_anova2(df, axis=1, levels=[0, 4])
     # df = hypo_test(df, 4, 1)
-    # df = get_df_ci(df, col_levels=["num_layer", ""], row_levels=["proofread", "Metrics"])
+    df = get_df_ci(df, col_levels=["num_layer", ""], row_levels=["proofread", "metrics"])
     # test_curve_display()
     # folder = "../results_wiener"
     # df = get_res_multi_file("merged", sort=False)
