@@ -7,7 +7,8 @@ cache_folder = "%s.cache" % current
 trained_model_folder = "%strained" % current
 results_cur_folder = "%sresults/CUR" % current
 trained_model_cur_folder = "%strained/CUR" % current
-
+region_based = ["DiceLoss()", "TverskyLoss()"]
+dist_based = ["CrossEntropyLoss()", "FocalLoss()"]
 balanced_ds = ["md_gender_bias", "sst", "imdb", "glue_sst2",
                "ag_news", "amazon_reviews_multi", "dbpedia_14",
                "yelp_review_full", "yahoo_answers_topics",

@@ -172,7 +172,7 @@ class ModelConfig:
                 self.disable_selfoutput = disable_selfoutput
                 self.cls_hidden_size = hidden_size
 
-                qkv_size = hidden_size if not qkv_size else qkv_size
+                qkv_size = 768 if not qkv_size else qkv_size
                 if qkv_size != 768:
                     self.qkv_size = qkv_size
 

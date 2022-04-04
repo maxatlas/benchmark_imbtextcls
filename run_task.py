@@ -299,7 +299,7 @@ def main(task: TaskConfig, model_path=""):
 
             os.makedirs(train_folder, exist_ok=True)
             file_name = task.idx()
-            # torch.save(model, "%s/%s" % (train_folder, file_name))
+            torch.save(model, "%s/%s" % (train_folder, file_name))
 
             print("\t Model saved ...")
 

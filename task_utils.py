@@ -15,7 +15,6 @@ from sklearn.metrics import (
 )
 
 import vars
-
 idx = pd.IndexSlice
 
 
@@ -224,7 +223,13 @@ def get_ci(l):
                          loc=np.mean(l), scale=st.sem(l))
 
 
-# def add_missing_columns(df):
+def format_latex_table(s:str):
+    s = s.replace("0000", "")
+    s = s.replace("Loss()", "")
+    s = s.replace("CrossEntropy", "CE")
+    s = s.replace("BCEWithLogits", "BCE")
+    s = s.replace("loss\_func", "loss")
+    return s
 
 
 if __name__ == "__main__":
